@@ -1,0 +1,9 @@
+# Ignore build directory and .output file
+build/
+.output
+.vscode
+
+# Ignore any file starting with "muddle" in the project root directory
+/muddle*
+
+muddle.sh
