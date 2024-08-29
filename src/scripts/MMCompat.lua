@@ -1,15 +1,10 @@
 -- MudMaster Compatibility Script
 -- 
--- use * to indicate an argument that must be provided
--- use ? to indicate an argument that is optional
--- use %# to indicate the appropriately numbered argument
+-- use %# to indicate an argument that must be provided
+-- use $# to indicate the appropriately numbered argument
 -- use wait # to wait that many seconds, including decimal seconds, before continuing to the next command
---
--- use /alias or /trigger to show a list of all aliases or triggers managed by this script
--- use /delete alias # or /delete trigger # to delete that alias or trigger, using the number matching that shown on the list
--- 
 
--- Code adopted from user Jor'Mox on the Mudlet forums
+-- Code inspired from user Jor'Mox on the Mudlet forums
 -- https://forums.mudlet.org/viewtopic.php?t=16462
 
 MMCompat = MMCompat or {
@@ -59,40 +54,44 @@ function expandQueue(...)
     doQueue(expandAlias,...)
 end
 
-local function parse_pattern(ptrn)
-    ptrn = string.gsub(ptrn,"([^/])%*","%1(.*)")
-    ptrn = string.gsub(ptrn,"^%*","(.*)")
-    ptrn = string.gsub(ptrn,"([^/])%?","%1\\s*(.*)")
-    ptrn = string.gsub(ptrn,"^%?%s*","(.-)\\s*")
-    ptrn = string.gsub(ptrn,"%s+\\s%*","\\s*")
-    ptrn = "^" .. ptrn .. "$"
-    return ptrn
-end
 
-
--- Function to replace %1, %2, etc., with named regex captures
+-- Function to replace %1, %2, etc., with named regex captures in the patterns
+-- of triggers and aliases
 local function parse_captures(pattern)
-  local captures = {}
+  local result = ""
 
-  -- Loop through the pattern and find all % followed by a number
-  for match in string.gmatch(pattern, "%%(%d+)") do
-      -- Create the named capture for each match
-      local named_capture = string.format("(?<%s>.*)", match)
-      -- Store the original and replacement in the table
-      table.insert(captures, {original = "%" .. match, replacement = named_capture})
+  -- we need to go thru all of this hooplah because gsub will complain if trying to replace %1 with something
+  local i = 1
+  while i <= #pattern do
+    local c = pattern:sub(i, i)
+    if c == "%" then
+      -- Check if the next character is a digit
+      local next_char = pattern:sub(i + 1, i + 1)
+      if next_char:match("%d") then
+        -- Create a named capture group using the digit
+        local capture_name = "capture" .. next_char
+        result = result .. "(?<" .. capture_name .. ">.*)"
+        i = i + 2 -- Skip over the % and the digit
+      else
+        -- If it's not a digit, just add the % to the result
+        result = result .. c
+        i = i + 1
+      end
+    else
+      -- Regular character, just add it to the result
+      result = result .. c
+      i = i + 1
+    end
   end
 
-  -- Replace all the found patterns in the original string
-  for _, capture in ipairs(captures) do
-      pattern = string.gsub(pattern, capture.original, capture.replacement)
-  end
-
-  return pattern
+  return result
 end
 
 
 -- Function to replace $variables in the string
 local function replace_variables(str, globals_table)
+
+  local anyMatch = false
 
   -- Find all $variables and replace them in one pass
   for var_name in string.gmatch(str, "%$[%w_]+") do
@@ -101,6 +100,8 @@ local function replace_variables(str, globals_table)
     local valueStr = "\"..MMGlobals['"..key.."']..\""
     str = string.gsub(str, var_name, valueStr)
 
+    anyMatch = true
+
     if MMCompat.isDebug then
       echo("var_name: " .. var_name .. "\n")
       echo("key: " .. key .. "\n")
@@ -108,25 +109,23 @@ local function replace_variables(str, globals_table)
     end
   end
 
-  return str
+  return str, anyMatch
 end
 
-function MMCompat.assignGlobalMatches()
+-- Template code to assign the matches global to entries in MMGlobals
+function MMCompat.templateAssignGlobalMatches()
   for n=2, #matches do
-    MMGlobals[n-1] = matches[n]
+    local var = tostring(n-1)
+    MMGlobals[var] = matches[n]
   end
 end
+
 
 local function parse_cmds(cmds)
   -- split commands by semicolon
   cmds = string.split(cmds,"%s*;%s*")
 
   display(cmds)
-
-  -- Add code that puts all matches into MMGlobals
-  local matchStr = [[MMCompat.assignGlobalMatches()]]
-
-  echo("matchStr: " .. matchStr .. "\n")
 
   local str = "expandQueue("
   local start, match, stop, tmp
@@ -161,14 +160,23 @@ local function parse_cmds(cmds)
 
   str = str .. ")"
 
-  local expandedStr = replace_variables(str, MMGlobals)
+  local expandedStr, anyMatchReplacements = replace_variables(str, MMGlobals)
 
   if MMCompat.isDebug then
     echo("expandedStr: " .. expandedStr .. "\n")
   end
 
-  return matchStr .. "\n" .. expandedStr
+  -- Add code that puts all matches into MMGlobals
+  -- Only if the resulting code uses the matches table
+  local matchStr = ""
+  if anyMatchReplacements then
+    matchStr = [[MMCompat.templateAssignGlobalMatches()]]
+    matchStr = matchStr .. "\n"
+  end
+
+  return matchStr .. expandedStr
 end
+
 
 local function createParentGroup(group, itemType, itemParent)
 
@@ -240,7 +248,7 @@ end
 
 
 function MMCompat.makeAlias(ptrn, cmds, group)
-  local pattern = parse_pattern(ptrn)
+  local pattern = parse_captures(ptrn)
   local commands = parse_cmds(cmds)
 
   local itemType = "alias"
@@ -268,21 +276,86 @@ function MMCompat.makeAlias(ptrn, cmds, group)
   permAlias(ptrn, group, pattern, commands)
 end
 
+-- name, frequency, commands, group
+function MMCompat.makeEvent(name, freq, cmds, group)
+  local commands = parse_cmds(cmds)
+
+  local itemType = "timer"
+  local itemParent = "MMEvents"
+
+  if exists(name, itemType) ~= 0 then
+    echo("Event with the name '" .. name .. "' already exists")
+    return
+  end
+
+  createParentGroup(group, itemType, itemParent)
+
+  permTimer(name, group, freq, commands)
+end
+
+-- name, frequency, commands, group
+function MMCompat.makeVariable(name, value, group)
+  MMGlobals[name] = value
+end
+
+function MMCompat.listAdd(name, group)
+  MMGlobals[name] = MMGlobals[name] or {}
+end
+
+function MMCompat.itemAdd(name, text)
+  MMGlobals[name] = MMGlobals[name] or {}
+  table.insert(MMGlobals[name], text)
+end
+
+function MMCompat.listCopy(from, to)
+  MMGlobals[from] = MMGlobals[from] or {}
+
+  local toName = to and to or from.."Copy"
+
+  MMGlobals[toName] = table.deepcopy(from)
+end
+
+function MMCompat.listDelete(name, text)
+  MMGlobals[name] = MMGlobals[name] or {}
+  table.insert(MMGlobals[name], text)
+end
+
+function MMCompat.itemDelete(name, text)
+  MMGlobals[name] = MMGlobals[name] or {}
+  table.insert(MMGlobals[name], text)
+end
+
 
 function MMCompat.config()
 
-    for i,v in ipairs(MMCompat.scriptAliases) do
+    for _,v in ipairs(MMCompat.scriptAliases) do
         killAlias(v)
     end
 
     MMCompat.scriptAliases = {}
 
-    -- arguments are pattern, commands, group
-    table.insert(MMCompat.scriptAliase, tempAlias([[^/action {(.*?)}\s*{(.*?)}\s*(?:{(.*)})?$]],
-      [[MMCompat.makeAction(matches[2], matches[3], matches[4])]]))
+    MMCompat.functions = {
+      {name="action", pattern=[[^/action {(.*?)}\s*{(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeAction(matches[2], matches[3], matches[4])]]},
+      {name="alias", pattern=[[^/alias (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))\s*(?:{(.*)})?$$]], cmd=[[MMCompat.makeAlias(matches[2], matches[3], matches[4])]]},
+      {name="event", pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
+      {name="variable", pattern=[[^/var(?:iable)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeVariable(matches[2], matches[3], matches[4])]]},
+      {name="listadd", pattern=[[^/listadd {(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.listAdd(matches[2], matches[3])]]},
+      {name="itemadd", pattern=[[^/itemadd {(.*?)}\s*{(.*?)}$]], cmd=[[MMCompat.itemAdd(matches[2], matches[3])]]},
+      --{name="", pattern=[[]], cmd=[[]]},
 
-    table.insert(MMCompat.scriptAliase, tempAlias([[^/alias {(.*?)}\s*{(.*?)}\s*(?:{(.*)})?$]],
-      [[MMCompat.makeAlias(matches[2], matches[3], matches[4]]))
+    }
+
+    for _,v in pairs(MMCompat.functions) do
+      local aliasId = tempAlias(v.pattern, v.cmd)
+      table.insert(MMCompat.scriptAliases, aliasId)
+    end
+
+    -- arguments are pattern, commands, group
+    --table.insert(MMCompat.scriptAliases, tempAlias([[^/action {(.*?)}\s*{(.*?)}\s*(?:{(.*)})?$]],
+    --  [[MMCompat.makeAction(matches[2], matches[3], matches[4])]]))
+
+    --table.insert(MMCompat.scriptAliases, tempAlias([[^/alias {(.*?)}\s*{(.*?)}\s*(?:{(.*)})?$]],
+    --  [[MMCompat.makeAlias(matches[2], matches[3], matches[4])]]))
 
 end
 
@@ -296,6 +369,10 @@ end
 
 if exists("MMAliases", "alias") == 0 then
   permGroup("MMAliases", "alias")
+end
+
+if exists("MMEvents", "timer") == 0 then
+  permGroup("MMEvents", "timer")
 end
 
 
