@@ -339,10 +339,12 @@ function MMCompat.config()
       {name="alias", pattern=[[^/alias (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))\s*(?:{(.*)})?$$]], cmd=[[MMCompat.makeAlias(matches[2], matches[3], matches[4])]]},
       {name="event", pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
       {name="variable", pattern=[[^/var(?:iable)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeVariable(matches[2], matches[3], matches[4])]]},
-      {name="listadd", pattern=[[^/listadd {(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.listAdd(matches[2], matches[3])]]},
-      {name="itemadd", pattern=[[^/itemadd {(.*?)}\s*{(.*?)}$]], cmd=[[MMCompat.itemAdd(matches[2], matches[3])]]},
-      --{name="", pattern=[[]], cmd=[[]]},
-
+      {name="listadd", pattern=[[^/lista(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.listAdd(matches[2], matches[3])]]},
+      {name="itemadd", pattern=[[^/itema(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemAdd(matches[2], matches[3])]]},
+      {name="listcopy", pattern=[[^/listc(?:opy)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.listCopy(matches[2], matches[3])]]},
+      {name="itemdelete", pattern=[[^/itemd(?:elete)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemDelete(matches[2], matches[3])]]},
+      {name="listdelete", pattern=[[^/listd(?:elete)? (?:{(\w+)}|(\w+))$]], cmd=[[MMCompat.listDelete(matches[2])]]},
+      {name="", pattern=[[]], cmd=[[]]},
     }
 
     for _,v in pairs(MMCompat.functions) do
