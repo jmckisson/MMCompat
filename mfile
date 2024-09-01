@@ -2,7 +2,7 @@
        "package": "MMCompat",
        "title": "MudMaster Script Compatibility",
        "description": "Set of Mudlet aliases to allow creation of Triggers/Aliases etc using the MM2k syntax",
-       "version": "0.2.1a",
+       "version": "0.3.0a",
        "author": "Kymbahl",
        "icon": "",
        "dependencies": "",
