@@ -12,7 +12,7 @@ MMCompat = MMCompat or {
   isDebug = false,
   scriptAliases = {},
   maxWhileLoop = 100,
-  version = __VERSION__ or "NotMuddledYet"
+  version = "__VERSION__" or "NotMuddledYet"
 }
 
 MMGlobals = MMGlobals or {}
@@ -550,8 +550,8 @@ function MMCompat.config()
       {name="chatname", pattern=[[^/chatn(?ame)? (.*)$]], cmd=[[MMCompat.doChatName(matches[2])]]},
       {name="emoteall", pattern=[[^/emotea(?ll)? (.*)$]], cmd=[[MMCompat.doEmoteAll(matches[2])]]},
       {name="unchat", pattern=[[^/unchat (.*)$]], cmd=[[MMCompat.doUnChat(matches[2])]]},
-      {name="", pattern=[[]], cmd=[[]]},
-      {name="", pattern=[[]], cmd=[[]]},
+      --{name="", pattern=[[]], cmd=[[]]},
+      --{name="", pattern=[[]], cmd=[[]]},
       --{name="", pattern=[[]], cmd=[[]]},
     }
 

@@ -24,7 +24,10 @@ function MMCompat.doChatCall(str)
       port = tonumber(port)
     end
 
-    chatCall(address, port)
+    local addressStr = MMCompat.referenceVariables(address, MMGlobals)
+    local portStr = MMCompat.referenceVariables(port, MMGlobals)
+
+    chatCall(addressStr, portStr)
   end
 
   function MMCompat.doChat(str)
@@ -54,7 +57,10 @@ function MMCompat.doChatCall(str)
       return
     end
 
-    chat(target, message)
+    local targetStr = MMCompat.referenceVariables(target, MMGlobals)
+    local messageStr = MMCompat.referenceVariables(message, MMGlobals)
+
+    chat(targetStr, messageStr)
   end
 
   function MMCompat.doChatAll(str)
@@ -74,7 +80,9 @@ function MMCompat.doChatCall(str)
       return
     end
 
-    chatAll(message)
+    local messageStr = MMCompat.referenceVariables(message, MMGlobals)
+
+    chatAll(messageStr)
   end
 
   function MMCompat.doChatName(str)
@@ -95,8 +103,9 @@ function MMCompat.doChatCall(str)
       return
     end
 
-    chatName(name)
+    local nameStr = MMCompat.referenceVariables(name, MMGlobals)
 
+    chatName(nameStr)
   end
 
   function MMCompat.doEmoteAll(str)
@@ -116,11 +125,32 @@ function MMCompat.doChatCall(str)
       return
     end
 
-    local emoteStr = "says, '" .. message .. "'"
+    local messageStr = MMCompat.referenceVariables(message, MMGlobals)
+
+    local emoteStr = "says, '" .. messageStr .. "'"
     chatEmoteAll(emoteStr)
   end
 
   function MMCompat.doUnChat(str)
+    if not chatUnChat then
+        MMCompat.error("MMCP is not implemented in this version of Mudlet")
+        return
+      end
+  
+      local foundTarget = false
+      local target = ""
+      local strText = str
+  
+      foundTarget, target, strText = MMCompat.findStatement(strText)
+  
+      if not foundTarget then
+        MMCompat.error("Error parsing target from '"..str.."'")
+        return
+      end
+
+      local targetStr = MMCompat.referenceVariables(target, MMGlobals)
+  
+      chatUnChat(targetStr)
   end
 
 --[[
@@ -403,8 +433,8 @@ function MMCompat.doWhile(strText)
         -- the maximum number of loops a while may execute
         MMGlobals['whileLoopCount'] = MMGlobals['whileLoopCount'] + 1
         if MMGlobals['whileLoopCount'] > MMCompat.maxWhileLoop then
-        MMCompat.echo("Breaking while loop after 100 iterations")
-        break
+            MMCompat.warning("Breaking while loop after 100 iterations")
+            break
         end
     end
 end
