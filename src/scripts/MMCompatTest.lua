@@ -34,10 +34,10 @@ end
 
 
 function MMCompatTest.testOutputTemplate(typeName, funcName, groupName, setupFunc, testFunc, expectedResult)
-    local outputName = funcName .. "Output"
+    local trigName = funcName.."Output"
 
     MMCompatTest.echo("Creating "..typeName.."...")
-    setupFunc(funcName, expectedResult)
+    setupFunc(funcName, expectedResult, trigName)
     MMCompatTest.echo("    Done creating "..typeName)
 
     if exists(funcName.." %1", groupName) == 0 then
@@ -52,8 +52,10 @@ function MMCompatTest.testOutputTemplate(typeName, funcName, groupName, setupFun
         failCount = 0,
     }
 
-    MMCompatTest.echo("Creating tempTrigger")
-    local trigId = tempRegexTrigger("^"..outputName.." (.*)",
+    local trigPattern = "^"..trigName.." (.*)"
+    MMCompatTest.echo("Creating tempTrigger '"..trigPattern.."'")
+    
+    local trigId = tempRegexTrigger(trigPattern,
         function()
             if MMCompat.isDebug then
                 echo("\n<<Outputing "..funcName..">>\n")
@@ -67,7 +69,7 @@ function MMCompatTest.testOutputTemplate(typeName, funcName, groupName, setupFun
     MMCompatTest.echo("    Done Creating tempTrigger, id: " .. trigId)
     
     MMCompatTest.echo("Testing "..typeName.."...")
-    testFunc(funcName, expectedResult)
+    testFunc(funcName, expectedResult, trigName)
     MMCompatTest.echo("    Done testing "..typeName)
 
     killTrigger(trigId)
@@ -100,147 +102,6 @@ function MMCompatTest.testScriptTemplate(funcName, setupFunc, testFunc, expected
     MMCompatTest.passFailReport(funcName, MMCompatTest.resultTbl)
 end
 
---[[
-function MMCompatTest.testAction1()
-    MMCompatTest.echo("Creating action...")
-    expandAlias("/action {actionTest1 %1} {/showme actionTest1Output $1}")
-    MMCompatTest.echo("    Done creating action")
-
-    if exists("actionTest1 %1", "MMActions") == 0 then
-        MMCompatTest.echo("actionTest1 FAILED, no action created")
-        return
-    end
-
-    MMCompatTest.resultTbl = {
-        expected = "test123",
-        actual = "<unset>",
-        passCount = 0,
-        failCount = 0,
-    }
-
-    MMCompatTest.echo("Creating tempTrigger")
-    local trigId = tempRegexTrigger("^actionTest1Output (.*)",
-        function()
-            if MMCompat.isDebug then
-                echo("\n<<Outputing testAction1>>\n")
-                display(matches)
-                display(MMCompatTest.resultTbl)
-            end
-            MMCompatTest.resultTbl.actual = matches[2]
-            MMCompatTest.testPassFailResult("testAction1", MMCompatTest.resultTbl)
-        end
-    , 1)
-    MMCompatTest.echo("    Done Creating tempTrigger, id: " .. trigId)
-    
-    MMCompatTest.echo("Testing action...")
-    expandAlias("/showme actionTest1Output " .. MMCompatTest.resultTbl.expected)
-    MMCompatTest.echo("    Done testing action")
-
-    killTrigger(trigId)
-
-    MMCompatTest.passFailReport("testAction1", MMCompatTest.resultTbl)
-end
-]]
-
---[[
-function MMCompatTest.testAlias1()
-    MMCompatTest.echo("Creating alias...")
-    expandAlias("/alias {aliasTest1 %1} {/showme aliasTest1Output $1}")
-    MMCompatTest.echo("    Done creating alias")
-
-    if exists("aliasTest1 %1", "MMAliases") == 0 then
-        MMCompatTest.echo("aliasTest1 FAILED, no alias created")
-        return
-    end
-
-    MMCompatTest.resultTbl = {
-        expected = "test123",
-        actual = "<unset>",
-        passCount = 0,
-        failCount = 0,
-    }
-
-    MMCompatTest.echo("Creating tempTrigger")
-    local trigId = tempRegexTrigger("^aliasTest1Output (.*)",
-        function()
-            if MMCompat.isDebug then
-                echo("\n<<Outputing testAlias1>>\n")
-                display(matches)
-                display(MMCompatTest.resultTbl)
-            end
-            MMCompatTest.resultTbl.actual = matches[2]
-            MMCompatTest.testPassFailResult("testAlias1", MMCompatTest.resultTbl)
-        end
-    , 1)
-    MMCompatTest.echo("    Done Creating tempTrigger, id: " .. trigId)
-    
-    MMCompatTest.echo("Testing alias...")
-    expandAlias("/aliasTest1 " .. MMCompatTest.resultTbl.expected)
-    MMCompatTest.echo("    Done testing alias")
-
-    killTrigger(trigId)
-
-    MMCompatTest.passFailReport("testAlias1", MMCompatTest.resultTbl)
-end
-]]
-
---[[
-function MMCompatTest.testAlias2()
-    MMCompatTest.echo("Creating alias...")
-    expandAlias("/alias {aliasTest2} {/if {$testAlias2 == 1} {/showme thenCondition $testAlias2} {/showme elseCondition $testAlias2}}")
-    MMCompatTest.echo("    Done creating alias")
-
-    if exists("aliasTest2 %1", "MMAliases") == 0 then
-        MMCompatTest.echo("aliasTest2 FAILED, no alias created")
-        return
-    end
-
-    MMCompatTest.resultTbl = {
-        expected = "1",
-        actual = "<unset>",
-        passCount = 0,
-        failCount = 0,
-    }
-
-    MMCompatTest.echo("Creating tempTrigger for THEN condition")
-    local trigId = tempRegexTrigger("^thenCondition (\\d+)",
-        function()
-            MMCompatTest.resultTbl.actual = matches[2]
-            MMCompatTest.testPassFailResult("testAlias2", MMCompatTest.resultTbl)
-        end
-    , 1)
-    MMCompatTest.echo("    Done Creating tempTrigger for THEN condition, id: " .. trigId)
-
-    MMCompatTest.echo("Testing alias THEN condition...")
-    MMGlobals = MMGlobals or {}
-    MMGlobals.testAlias2 = 1
-    expandAlias("/aliasTest2 ".. MMGlobals.testAlias2)
-    MMCompatTest.echo("    Done testing alias THEN condition")
-
-    killTrigger(trigId)
-
-    MMCompatTest.resultTbl.expected = "0"
-    MMCompatTest.resultTbl.actual = "<unset>"
-
-    MMCompatTest.echo("Creating tempTrigger for ELSE condition")
-    trigId = tempRegexTrigger("^elseCondition (\\d+)",
-        function()
-            MMCompatTest.resultTbl.actual = matches[2]
-            MMCompatTest.testPassFailResult("testAlias2", MMCompatTest.resultTbl)
-        end
-    , 1)
-    MMCompatTest.echo("    Done Creating tempTrigger for ELSE condition, id: " .. trigId)
-
-    MMCompatTest.echo("Testing alias ELSE condition...")
-    MMGlobals.testAlias2 = 0
-    expandAlias("/aliasTest2 " .. MMGlobals.testAlias2)
-    MMCompatTest.echo("    Done testing alias ELSE condition")
-
-    killTrigger(trigId)
-
-    MMCompatTest.passFailReport("testAlias2", MMCompatTest.resultTbl)
-end
-]]
 
 MMCompatTest.scriptAliases = MMCompatTest.scriptAliases or {}
 
@@ -258,13 +119,20 @@ MMCompatTest.functions = {
         groupName = "MMActions",
         pattern = [[^testAction1$]],
         expected = "test123",
-        setupFunc = function(funcName, outputValStr)
-            -- Set up action to look for 'testAction1 test123' to '/showme testAction1Output test123'
-            expandAlias("/action {"..funcName.." %1} {/showme "..funcName.."Output $1}")
+        setupFunc = function(funcName, outputValStr, triggerName)
+            -- Set up action to look for 'testAction1Test test123' to '/showme testAction1Output test123'
+            expandAlias("/action {"..funcName.."Test %1} {/showme "..funcName.."Output $1}")
         end,
         testFunc = function(funcName, outputValStr)
             -- Now trigger the action with /showme testAction1 test123
-            expandAlias("/showme "..funcName.." " .. MMCompatTest.resultTbl.expected)
+            local actionCode = string.format("\n%sTest %s\n", funcName, outputValStr)
+
+            if MMCompat.isDebug then
+                display(MMGlobals)
+                echo("actionCode: " .. actionCode .. "\n")
+            end
+           
+            feedTriggers(actionCode)
         end
     },
     {
@@ -274,10 +142,10 @@ MMCompatTest.functions = {
         groupName = "MMActions",
         pattern = [[^testAction2$]],
         expected = "test456",
-        setupFunc = function(funcName, outputValStr)
-            -- Set up action to look for 'testAction2 <something>', with an if condition
+        setupFunc = function(funcName, outputValStr, triggerName)
+            -- Set up action to look for 'testAction2Test <something>', with an if condition
             -- that tests if <something> == test456 then sets MMGlobals['testAction2'] to 1, else 0
-            local evtCode = string.format("/action {%s %s} {/if {$1 == %s} {/variable %s 1} {/variable %s 0}}",
+            local evtCode = string.format("/action {%sTest %s} {/if {$1 == %s} {/variable %s 1} {/variable %s 0}}",
                 funcName, "%1", outputValStr, funcName, funcName)
             if MMCompat.isDebug then
                 display(MMGlobals)
@@ -289,12 +157,13 @@ MMCompatTest.functions = {
             -- by outputting testAction2 test456
             MMGlobals[funcName] = "<unset>"
 
-            local actionCode = string.format("\n%s %s\n", funcName, outputValStr)
+            local actionCode = string.format("\n%sOutput %s\n", funcName, outputValStr)
 
             if MMCompat.isDebug then
                 display(MMGlobals)
+                echo("actionCode: " .. actionCode .. "\n")
             end
-            echo("actionCode: " .. actionCode .. "\n")
+            
             feedTriggers(actionCode)
         end
     },
@@ -305,11 +174,14 @@ MMCompatTest.functions = {
         groupName = "MMAliases",
         pattern = [[^testAlias1$]],
         expected = "test123",
-        setupFunc = function(funcName, outputValStr)
-            expandAlias("/alias {"..funcName.." %1} {/showme "..outputValStr.." $1}")
+        setupFunc = function(funcName, expectedResult, triggerName)
+            -- Set up an alias with pattern 'testAlias1Test %1' which does a /showme testAlias2Output $1
+            local aliasCode = string.format("/alias {%sTest %s} {/showme %sOutput $1}",
+                funcName, "%1", funcName)
+            expandAlias(aliasCode)
         end,
         testFunc = function(funcName, outputValStr)
-            expandAlias("/"..funcName.." " .. MMCompatTest.resultTbl.expected)
+            expandAlias("/"..funcName.."Test " .. MMCompatTest.resultTbl.expected)
         end
     },
     {
@@ -319,12 +191,24 @@ MMCompatTest.functions = {
         groupName = "MMAliases",
         pattern = [[^testAlias2$]],
         expected = "1",
-        setupFunc = function(funcName, outputValStr)
+        setupFunc = function(funcName, expectedResult, triggerName)
             MMGlobals[funcName] = 1
-            expandAlias("/alias {"..funcName.."} {/if {$"..funcName.." == 1} {/showme "..outputValStr.." 1} {/showme "..outputValStr.." 0}}")
+            -- Set up an alias with pattern 'testAlias2Test' which tests the value MMGlobals[aliasTest2]
+            -- if the value is 1 then echo 'testAlias2Output 1' else echo 'testAlias2Output 0'
+            -- the showme's need to output 'testAlias2Output 0|1'
+            local aliasCode = string.format("/alias {%sTest} {/if {$%s == 1} {/showme %sOutput %s} {/showme %sOutput 0}}",
+                funcName, funcName, funcName, expectedResult, funcName)
+
+            if MMCompat.isDebug then
+                display(MMGlobals)
+                echo("aliasCode: '"..aliasCode.."'\n")
+            end
+
+            expandAlias(aliasCode)
         end,
         testFunc = function(funcName, outputValStr)
-            expandAlias("/"..funcName.." " .. MMGlobals.testAlias2)
+            -- Expand the created alias testAlias2Test
+            expandAlias("/"..funcName.."Test " .. MMGlobals.testAlias2)
         end
     },
     {
@@ -334,12 +218,24 @@ MMCompatTest.functions = {
         groupName = "MMAliases",
         pattern = [[^testAlias3$]],
         expected = "0",
-        setupFunc = function(funcName, outputValStr)
-            MMGlobals[funcName] = 0
-            expandAlias("/alias {"..funcName.."} {/if {$"..funcName.." == 1} {/showme "..outputValStr.." 1} {/showme "..outputValStr.." 0}}")
+        setupFunc = function(funcName, expectedResult, triggerName)
+            MMGlobals[funcName] = 1
+            -- Set up an alias with pattern 'testAlias3Test' which tests the value MMGlobals[aliasTest3]
+            -- if the value is 1 then echo 'testAlias3Output 1' else echo 'testAlias3Output 0'
+            -- the showme's need to output 'testAlias3Output 0|1'
+            local aliasCode = string.format("/alias {%sTest} {/if {$%s == 1} {/showme %sOutput %s} {/showme %sOutput 0}}",
+                funcName, funcName, funcName, expectedResult, funcName)
+
+            if MMCompat.isDebug then
+                display(MMGlobals)
+                echo("aliasCode: '"..aliasCode.."'\n")
+            end
+
+            expandAlias(aliasCode)
         end,
-        testFunc = function(funcName, outputValStr)
-            expandAlias("/"..funcName.." " .. MMGlobals.testAlias2)
+        testFunc = function(funcName, outputValStr, triggerName)
+            -- Expand the created alias testAlias3Test
+            expandAlias("/"..funcName.."Test " .. MMGlobals.testAlias3)
         end
     },
     {

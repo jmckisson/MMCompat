@@ -5,6 +5,16 @@
               "isFolder": "no"
        },
        {
+              "name": "MMCompatCommands",
+              "isActive": "yes",
+              "isFolder": "no"
+       },
+       {
+              "name": "MMCompatProcedures",
+              "isActive": "yes",
+              "isFolder": "no"
+       },
+       {
               "name": "MMCompatTest",
               "isActive": "no",
               "isFolder": "no"
