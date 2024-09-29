@@ -3,6 +3,8 @@ name: Build project using muddler and upload artifact
 on:
   push:
     branches: [ master ]
+    tags:
+      - '*'
 
 jobs:
   build:
@@ -43,7 +45,9 @@ jobs:
           # What directory to run muddler in.
           #workingDir: # optional, default is ${{ github.workspace }}
 
-      - uses: ncipollo/release-action@v1.14.0
+      - name: Create Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: ncipollo/release-action@v1.14.0
         # see https://github.com/marketplace/actions/create-release
         with:
           artifacts: "build/${{env.mfile_package}}.mpackage,version.txt"
