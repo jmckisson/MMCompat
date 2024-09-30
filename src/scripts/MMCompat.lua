@@ -85,7 +85,7 @@ function MMCompat.parseCaptures(pattern)
   local result = ""
 
   -- we need to go thru all of this hooplah because gsub will complain if trying to replace %1 with something
-  local i = 1
+  local i = 0
   while i <= #pattern do
     local c = pattern:sub(i, i)
 
@@ -99,10 +99,13 @@ function MMCompat.parseCaptures(pattern)
         j = j + 1
       end
 
+      MMCompat.debug("digits: " .. digits)
+
       if #digits > 0 then
         -- Create a named capture group using the collected digits
         local capture_name = "capture" .. digits
         result = result .. "(?<" .. capture_name .. ">.*)"
+        MMCompat.debug("captureName: " .. capture_name)
         i = j -- Skip over the % and the digits
       else
         -- no digits follow %, just add the % to the result
@@ -333,7 +336,13 @@ end
 --]]
 
 function MMCompat.templateAssignGlobalMatches()
+  if MMCompat.isDebug then
+    display(matches)
+    echo("\n")
+  end
+
   for k, v in pairs(matches) do
+    MMCompat.debug(string.format("assigning key: %s  value: %s", k, v))
     if not tonumber(k) then
       -- this is a named capture
       MMGlobals[k] = v
@@ -458,7 +467,7 @@ function MMCompat.parseCondition(cmds)
 end
 
 
-function createParentGroup(group, itemType, itemParent)
+function MMCompat.createParentGroup(group, itemType, itemParent)
 
   if MMCompat.isDebug then
     local debugTbl = {
@@ -529,7 +538,8 @@ function MMCompat.config()
     MMCompat.functions = {
       {name="action", pattern="^/action (.*)$", cmd=[[MMCompat.makeAction2(matches[2])]]},
       --{name="action", pattern="^/action "..nested3MatchPattern, cmd=[[MMCompat.makeAction(matches)]]},
-      {name="alias", pattern="^/alias "..nested3MatchPattern, cmd=[[MMCompat.makeAlias(matches)]]},
+      --{name="alias", pattern="^/alias "..nested3MatchPattern, cmd=[[MMCompat.makeAlias(matches)]]},
+      {name="alias", pattern="^/alias (.*)$", cmd=[[MMCompat.makeAlias2(matches[2])]]},
       {name="event", pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
       --{name="if", pattern=[[^/if {(.+?)}\s*{(.+?)}\s*(?:{(.+)})?$]], cmd=[[MMCompat.doIf(matches[2], matches[3], matches[4])]]},
       {name="if", pattern=[[^/if (.*)$]], cmd=[[MMCompat.doIf2(matches[2])]]},

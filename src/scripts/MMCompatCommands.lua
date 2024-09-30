@@ -48,14 +48,7 @@ function MMCompat.doChatCall(str)
     end
 
     local foundMessage = false
-    local message = ""
-
-    foundMessage, message, strText = MMCompat.findStatement(strText)
-
-    if not foundMessage then
-      MMCompat.error("Error parsing message from '"..str.."'")
-      return
-    end
+    local message = strText
 
     local targetStr = MMCompat.referenceVariables(target, MMGlobals)
     local messageStr = MMCompat.referenceVariables(message, MMGlobals)
@@ -69,18 +62,7 @@ function MMCompat.doChatCall(str)
       return
     end
 
-    local foundMessage = false
-    local message = ""
-    local strText = str
-
-    foundMessage, message, strText = MMCompat.findStatement(strText)
-
-    if not foundMessage then
-      MMCompat.error("Error parsing message from '"..str.."'")
-      return
-    end
-
-    local messageStr = MMCompat.referenceVariables(message, MMGlobals)
+    local messageStr = MMCompat.referenceVariables(str, MMGlobals)
 
     chatAll(messageStr)
   end
@@ -114,18 +96,7 @@ function MMCompat.doChatCall(str)
       return
     end
 
-    local foundMessage = false
-    local message = ""
-    local strText = str
-
-    foundMessage, message, strText = MMCompat.findStatement(strText)
-
-    if not foundMessage then
-      MMCompat.error("Error parsing message from '"..str.."'")
-      return
-    end
-
-    local messageStr = MMCompat.referenceVariables(message, MMGlobals)
+    local messageStr = MMCompat.referenceVariables(str, MMGlobals)
 
     local emoteStr = "says, '" .. messageStr .. "'"
     chatEmoteAll(emoteStr)
@@ -680,6 +651,7 @@ function MMCompat.makeAction(m)
     MMCompat.debug("trigId: " .. trigId)
 end
 
+--[[
 function MMCompat.makeAlias(m)
 
     if MMCompat.isDebug then
@@ -724,6 +696,64 @@ function MMCompat.makeAlias(m)
     local treeGroup = MMCompat.createParentGroup(group, "alias", "MMAliases")
 
     permAlias(ptrn, treeGroup, pattern, commands)
+end
+--]]
+
+function MMCompat.makeAlias2(str)
+
+    local strText = str
+    local foundPattern = false
+    local aliasPattern = ""
+
+    foundPattern, aliasPattern, strText = MMCompat.findStatement(strText)
+
+    if not foundPattern then
+        MMCompat.error("Unable to parse alias name from '"..str.."'")
+        return
+    end
+
+    local foundCommand = false
+    local aliasCommands = ""
+
+    foundCommand, aliasCommands, strText = MMCompat.findStatement(strText)
+
+    if not foundCommand then
+        MMCompat.error("Unable to parse alias command from '"..str.."'")
+        return
+    end
+
+    local foundGroup = false
+    local aliasGroup = ""
+
+    foundGroup, aliasGroup, strText = MMCompat.findStatement(strText)
+
+    local pattern = "^"..MMCompat.parseCaptures(aliasPattern)
+    local commands = MMCompat.parseCommands(aliasCommands, true, false)
+
+    if MMCompat.isDebug then
+      local tbl = {
+        tGroup = aliasGroup,
+        tPattern = aliasPattern,
+        tParsedPattern = pattern,
+        tCmds = aliasCommands,
+        tItemType = "alias"
+      }
+
+      MMCompat.debug("makeAlias after parse")
+      display(tbl)
+      echo("\n")
+      display(MMGlobals)
+    end
+
+    if exists(aliasPattern, "alias") ~= 0 then
+      MMCompat.echo("Alias with the name '<green>" .. aliasPattern .. "<white>' already exists")
+      return
+    end
+
+    -- Create group 'group' under group 'parentGroup', if group exists
+    local treeGroup = MMCompat.createParentGroup(aliasGroup, "alias", "MMAliases")
+
+    permAlias(aliasPattern, treeGroup, pattern, commands)
 end
 
 -- name, frequency, commands, group
