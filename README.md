@@ -2,14 +2,25 @@ Set of Mudlet aliases to allow creation of Triggers/Aliases etc using the MM2K s
 
 ### Usage
 
-Some Implemented MudMaster Commands:
+Implemented MudMaster Commands:
 
-`> /alias`
 `> /action`
+`> /alias`
+`> /call`
+`> /chat`
+`> /chatall`
+`> /chatname`
+`> /emoteall`
 `> /event`
+`> /if`
+`> /itemadd`
+`> /itemdelete`
+`> /listadd`
+`> /listcopy`
+`> /listdelete`
+`> /loop`
+`> /showme`
+`> /unchat`
 `> /var`
-
-
-    output of alias_1  -- indent by four spaces
-    more output        -- for code blocks
+`> /while`
 

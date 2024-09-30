@@ -563,7 +563,7 @@ function MMCompat.makeAction(m)
     end
 
     if exists(ptrn, "trigger") ~= 0 then
-      MMCompat.echo("Action with the name '<green>" .. ptrn .. "<white>' already exists")
+      MMCompat.warning("Action with the name '<green>" .. ptrn .. "<white>' already exists")
       return
     end
 
@@ -633,7 +633,7 @@ function MMCompat.makeAction(m)
     end
 
     if exists(ptrn, "trigger") ~= 0 then
-      MMCompat.echo("Action with the name '<green>" .. ptrn .. "<white>' already exists")
+      MMCompat.warning("Action with the name '<green>" .. ptrn .. "<white>' already exists")
       return
     end
 
@@ -746,7 +746,7 @@ function MMCompat.makeAlias2(str)
     end
 
     if exists(aliasPattern, "alias") ~= 0 then
-      MMCompat.echo("Alias with the name '<green>" .. aliasPattern .. "<white>' already exists")
+      MMCompat.warning("Alias with the name '<green>" .. aliasPattern .. "<white>' already exists")
       return
     end
 

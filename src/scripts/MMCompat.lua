@@ -57,11 +57,6 @@ function expandQueue(...)
 end
 
 
-local function debugPrint()
-
-end
-
-
 function MMCompat.debug(msg)
   if MMCompat.isDebug then
       cecho(string.format("\n<white>[<indian_red>MMCompat<orange>Debug<white>] %s", msg))
