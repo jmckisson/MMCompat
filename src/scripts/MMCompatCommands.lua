@@ -596,7 +596,7 @@ function MMCompat.makeAction(m)
       return
     end
 
-    local treeGroup = createParentGroup(group, "trigger", "MMActions")
+    local treeGroup = MMCompat.createParentGroup(group, "trigger", "MMActions")
 
     if MMCompat.isDebug then
       echo("Creating trigger '" .. ptrn .. "'\n")
@@ -666,7 +666,7 @@ function MMCompat.makeAction(m)
       return
     end
 
-    local treeGroup = createParentGroup(group, "trigger", "MMActions")
+    local treeGroup = MMCompat.createParentGroup(group, "trigger", "MMActions")
 
     MMCompat.debug("Creating trigger '" .. ptrn .. "'")
 
@@ -721,7 +721,7 @@ function MMCompat.makeAlias(m)
     end
 
     -- Create group 'group' under group 'parentGroup', if group exists
-    local treeGroup = createParentGroup(group, "alias", "MMAliases")
+    local treeGroup = MMCompat.createParentGroup(group, "alias", "MMAliases")
 
     permAlias(ptrn, treeGroup, pattern, commands)
 end
@@ -738,7 +738,7 @@ function MMCompat.makeEvent(name, freq, cmds, group)
       return
     end
 
-    createParentGroup(group, itemType, itemParent)
+    MMCompat.createParentGroup(group, itemType, itemParent)
 
     permTimer(name, group, freq, commands)
 end

@@ -458,7 +458,7 @@ function MMCompat.parseCondition(cmds)
 end
 
 
-local function createParentGroup(group, itemType, itemParent)
+function createParentGroup(group, itemType, itemParent)
 
   if MMCompat.isDebug then
     local debugTbl = {
