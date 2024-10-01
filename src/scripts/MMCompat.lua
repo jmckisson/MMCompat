@@ -12,7 +12,8 @@ MMCompat = MMCompat or {
   isDebug = false,
   scriptAliases = {},
   maxWhileLoop = 100,
-  version = "__VERSION__" or "NotMuddledYet"
+  version = "__VERSION__" or "NotMuddledYet",
+  variables = {}
 }
 
 MMGlobals = MMGlobals or {}
@@ -543,6 +544,7 @@ function MMCompat.config()
       {name="itemdelete", pattern=[[^/itemd(?:elete)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemDelete(matches[2], matches[3])]]},
       {name="listcopy", pattern=[[^/listc(?:opy)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.listCopy(matches[2], matches[3])]]},
       {name="listdelete", pattern=[[^/listd(?:elete)? (?:{(\w+)}|(\w+))$]], cmd=[[MMCompat.listDelete(matches[2])]]},
+      {name="clearlist", pattern=[[^/clearlist (.*)$]], cmd=[[MMCompat.clearList(matches[2])]]},
       {name="loop", pattern=[[^/loop (.*)$]], cmd=[[MMCompat.doLoop(matches[2])]]},
       {name="showme", pattern=[[^/showme (?:{(.+?)}|(.+?))$]], cmd=[[MMCompat.doShowme(matches)]]},
       {name="variable", pattern="^/var(?:iable)? (.*)$", cmd=[[MMCompat.makeVariable2(matches[2])]]},
@@ -555,6 +557,7 @@ function MMCompat.config()
       {name="chatname", pattern=[[^/chatn(?ame)? (.*)$]], cmd=[[MMCompat.doChatName(matches[2])]]},
       {name="emoteall", pattern=[[^/emotea(?ll)? (.*)$]], cmd=[[MMCompat.doEmoteAll(matches[2])]]},
       {name="unchat", pattern=[[^/unchat (.*)$]], cmd=[[MMCompat.doUnChat(matches[2])]]},
+      {name="unvariable", pattern=[[^/unvar(?iable) (.*)$]], cmd=[[MMCompat.doUnVariable(matches[2])]]},
       --{name="", pattern=[[]], cmd=[[]]},
       --{name="", pattern=[[]], cmd=[[]]},
       --{name="", pattern=[[]], cmd=[[]]},
@@ -627,7 +630,7 @@ function MMCompat.config()
       {name="NumLists",       cmd=MMCompat.procNumLists},
       {name="NumMacros",      cmd=function() return getProfileStats().keys.active end},
       {name="NumTabList",     cmd=MMCompat.procNumTabList},
-      {name="NumVariables",   cmd=function() return #MMGlobals end},
+      {name="NumVariables",   cmd=function() return #MMCompat.variables end},
       {name="PadLeft",        cmd=function(str, char, n) return string.rep(char, n) .. str end},
       {name="PadRight",       cmd=function(str, char, n) return str .. string.rep(char, n) end},
       {name="PreTrans",       cmd=function(val) return MMCompat.referenceVariables(val) end},

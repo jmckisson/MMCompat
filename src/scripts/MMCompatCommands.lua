@@ -480,6 +480,19 @@ function MMCompat.listCopy(from, to)
     MMGlobals[toName] = table.deepcopy(from)
 end
 
+--[[
+Format: /clearlist {list}
+Format: /clearlist {reference number}
+
+Removes all the items from the specified list.
+
+   * {list} Name of the list you want to clear.
+   * {reference number} Reference number of the list you want to clear.
+]]
+function MMCompat.clearList(list)
+    MMCompat[list] = {}
+end
+
 
 --[[
 Format: /listdelete {list name}
@@ -492,9 +505,9 @@ Deletes a user defined list and any items in the list.
 ]]
 function MMCompat.listDelete(name)
     table.remove(MMGlobals[name])
-    end
+end
 
-    local is_int = function(n)
+local is_int = function(n)
     return (type(n) == "number") and (math.floor(n) == n)
 end
 
