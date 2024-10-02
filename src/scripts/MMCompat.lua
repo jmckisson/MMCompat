@@ -13,7 +13,14 @@ MMCompat = MMCompat or {
   scriptAliases = {},
   maxWhileLoop = 100,
   version = "__VERSION__" or "NotMuddledYet",
-  variables = {}
+  save = {
+    actions = {},
+    aliases = {},
+    events = {},
+    lists = {},
+    macros = {},
+    variables = {},
+  }
 }
 
 MMGlobals = MMGlobals or {}
@@ -532,36 +539,36 @@ function MMCompat.config()
     local nested3MatchPattern = [[(?:{(.+?)}|(\w+))\s+(?:{(.+?)}|(.+?))\s*(?:{((?:[^{}]|\{[^{}]*\})*)})?$]]
 
     MMCompat.functions = {
-      {name="action", pattern="^/action (.*)$", cmd=[[MMCompat.makeAction2(matches[2])]]},
-      --{name="action", pattern="^/action "..nested3MatchPattern, cmd=[[MMCompat.makeAction(matches)]]},
-      --{name="alias", pattern="^/alias "..nested3MatchPattern, cmd=[[MMCompat.makeAlias(matches)]]},
-      {name="alias", pattern="^/alias (.*)$", cmd=[[MMCompat.makeAlias2(matches[2])]]},
-      {name="event", pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
-      --{name="if", pattern=[[^/if {(.+?)}\s*{(.+?)}\s*(?:{(.+)})?$]], cmd=[[MMCompat.doIf(matches[2], matches[3], matches[4])]]},
-      {name="if", pattern=[[^/if (.*)$]], cmd=[[MMCompat.doIf2(matches[2])]]},
-      {name="itemadd", pattern=[[^/itema(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemAdd(matches)]]},
-      {name="listadd", pattern=[[^/lista(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.listAdd(matches[2], matches[3])]]},
-      {name="itemdelete", pattern=[[^/itemd(?:elete)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemDelete(matches[2], matches[3])]]},
-      {name="listcopy", pattern=[[^/listc(?:opy)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.listCopy(matches[2], matches[3])]]},
-      {name="listdelete", pattern=[[^/listd(?:elete)? (?:{(\w+)}|(\w+))$]], cmd=[[MMCompat.listDelete(matches[2])]]},
-      {name="clearlist", pattern=[[^/clearlist (.*)$]], cmd=[[MMCompat.clearList(matches[2])]]},
-      {name="loop", pattern=[[^/loop (.*)$]], cmd=[[MMCompat.doLoop(matches[2])]]},
-      {name="showme", pattern=[[^/showme (?:{(.+?)}|(.+?))$]], cmd=[[MMCompat.doShowme(matches)]]},
-      {name="variable", pattern="^/var(?:iable)? (.*)$", cmd=[[MMCompat.makeVariable2(matches[2])]]},
-      --{name="variable", pattern="^/var(?:iable)? "..nested3MatchPattern, cmd=[[MMCompat.makeVariable(matches)]]},
-      {name="while", pattern=[[^/while (.*)$]], cmd=[[MMCompat.doWhile(matches[2])]]},
-      --{name="test", pattern=[[^/test (.*)$]], cmd=[[MMCompat.doTest(matches[2])]]},
-      {name="call", pattern=[[^/call (.*)$]], cmd=[[MMCompat.doChatCall(matches[2])]]},
-      {name="chat", pattern=[[^/chat (.*)$]], cmd=[[MMCompat.doChat(matches[2])]]},
-      {name="chatall", pattern=[[^/chata(?:ll)? (.*)$]], cmd=[[MMCompat.doChatAll(matches[2])]]},
-      {name="chatname", pattern=[[^/chatn(?ame)? (.*)$]], cmd=[[MMCompat.doChatName(matches[2])]]},
-      {name="emoteall", pattern=[[^/emotea(?ll)? (.*)$]], cmd=[[MMCompat.doEmoteAll(matches[2])]]},
-      {name="unchat", pattern=[[^/unchat (.*)$]], cmd=[[MMCompat.doUnChat(matches[2])]]},
-      {name="unvariable", pattern=[[^/unvar(?iable) (.*)$]], cmd=[[MMCompat.doUnVariable(matches[2])]]},
+      {name="action",       pattern="^/action (.*)$", cmd=[[MMCompat.makeAction2(matches[2])]]},
+      {name="alias",        pattern="^/alias (.*)$", cmd=[[MMCompat.makeAlias2(matches[2])]]},
+      {name="editvariable", pattern="^/editvariable (.*)$", cmd=[[MMCompat.doEditVariable(matches[2])]]},
+      {name="empty",        pattern="^/empty (.*)$", cmd=[[MMCompat.doEmpty(matches[2])]]},
+      {name="event",        pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]], cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
+      {name="if",           pattern=[[^/if (.*)$]], cmd=[[MMCompat.doIf2(matches[2])]]},
+      {name="itemadd",      pattern=[[^/itema(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemAdd(matches)]]},
+      {name="listadd",      pattern=[[^/lista(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.listAdd(matches[2], matches[3])]]},
+      {name="itemdelete",   pattern=[[^/itemd(?:elete)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemDelete(matches[2], matches[3])]]},
+      {name="listcopy",     pattern=[[^/listc(?:opy)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.listCopy(matches[2], matches[3])]]},
+      {name="listdelete",   pattern=[[^/listd(?:elete)? (?:{(\w+)}|(\w+))$]], cmd=[[MMCompat.listDelete(matches[2])]]},
+      {name="clearlist",    pattern=[[^/clearlist (.*)$]], cmd=[[MMCompat.clearList(matches[2])]]},
+      {name="loop",         pattern=[[^/loop (.*)$]], cmd=[[MMCompat.doLoop(matches[2])]]},
+      {name="showme",       pattern=[[^/showme (?:{(.+?)}|(.+?))$]], cmd=[[MMCompat.doShowme(matches)]]},
+      {name="variable",     pattern=[[^/var(?:iable)? (.*)$]], cmd=[[MMCompat.makeVariable2(matches[2])]]},
+      {name="while",        pattern=[[^/while (.*)$]], cmd=[[MMCompat.doWhile(matches[2])]]},
+      {name="call",         pattern=[[^/call (.*)$]], cmd=[[MMCompat.doChatCall(matches[2])]]},
+      {name="chat",         pattern=[[^/chat\s*(.*)$]], cmd=[[MMCompat.doChat(matches[2])]]},
+      {name="chatall",      pattern=[[^/chata(?:ll)? (.*)$]], cmd=[[MMCompat.doChatAll(matches[2])]]},
+      {name="chatname",     pattern=[[^/chatn(?ame)? (.*)$]], cmd=[[MMCompat.doChatName(matches[2])]]},
+      {name="emoteall",     pattern=[[^/emotea(?ll)? (.*)$]], cmd=[[MMCompat.doEmoteAll(matches[2])]]},
+      {name="unchat",       pattern=[[^/unchat (.*)$]], cmd=[[MMCompat.doUnChat(matches[2])]]},
+      {name="unvariable",   pattern=[[^/unvar(?iable) (.*)$]], cmd=[[MMCompat.doUnVariable(matches[2])]]},
+      {name="zap",          pattern=[[^/zap$]], cmd=[[disconnect()]]},
       --{name="", pattern=[[]], cmd=[[]]},
       --{name="", pattern=[[]], cmd=[[]]},
       --{name="", pattern=[[]], cmd=[[]]},
     }
+
+    
 
     for _,v in pairs(MMCompat.functions) do
       local aliasId = tempAlias(v.pattern, v.cmd)
@@ -621,16 +628,16 @@ function MMCompat.config()
       {name="Mid",            cmd=function(str, start, n) return string.sub(str, start, start + n - 1) end},
       {name="Minute",         cmd=function() return os.date("%M") end},
       {name="Month",          cmd=function() return os.date("%B") end},
-      {name="NumActions",     cmd=function() return getProfileStats().triggers.active end},
-      {name="NumAliases",     cmd=function() return getProfileStats().aliases.active end},
+      {name="NumActions",     cmd=function() return #MMCompat.save.actions end},
+      {name="NumAliases",     cmd=function() return #MMCompat.save.aliases end},
       {name="NumBarItems",    cmd=MMCompat.procNumBarItems},
-      {name="NumEvents",      cmd=function() return getProfileStats().timers.active end},
+      {name="NumEvents",      cmd=function() return #MMCompat.save.events end},
       {name="NumGags",        cmd=MMCompat.procNumGags},
       {name="NumHighlights",  cmd=MMCompat.procNumHighLights},
-      {name="NumLists",       cmd=MMCompat.procNumLists},
+      {name="NumLists",       cmd=function() return #MMCompat.save.lists end},
       {name="NumMacros",      cmd=function() return getProfileStats().keys.active end},
       {name="NumTabList",     cmd=MMCompat.procNumTabList},
-      {name="NumVariables",   cmd=function() return #MMCompat.variables end},
+      {name="NumVariables",   cmd=function() return #MMCompat.save.variables end},
       {name="PadLeft",        cmd=function(str, char, n) return string.rep(char, n) .. str end},
       {name="PadRight",       cmd=function(str, char, n) return str .. string.rep(char, n) end},
       {name="PreTrans",       cmd=function(val) return MMCompat.referenceVariables(val) end},
@@ -659,6 +666,38 @@ function MMCompat.config()
     }
 
 end
+
+
+function MMCompat.saveData()
+  local charName = string.lower(getProfileName())
+  
+  local saveTable = table.deepcopy(MMCompat.save)
+  
+  table.save(getMudletHomeDir().."/mmcompat_"..charName..".lua", saveTable)
+end
+
+
+function MMCompat.loadData()
+  local charName = string.lower(getProfileName())
+  
+  local loadTable = {}
+  local tablePath = getMudletHomeDir().."/mmcompat_"..charName..".lua"
+  if io.exists(tablePath) then
+    table.load(tablePath, loadTable)
+  end
+  
+  MMCompat.save = table.deepcopy(loadTable)
+
+  MMCompat.save.actions = MMCompat.save.actions or {}
+  MMCompat.save.aliases = MMCompat.save.actions or {}
+  MMCompat.save.events = MMCompat.save.actions or {}
+  MMCompat.save.lists = MMCompat.save.lists or {}
+  MMCompat.save.macros = MMCompat.save.macros or {}
+  MMCompat.save.variabes = MMCompat.save.actions or {}
+  
+  MMCompat.cecho("Loaded MudMaster script data for <yellow>" .. charName)
+end
+
 
 if not MMCompat.isInitialized then
   math.randomseed(os.time())

@@ -10,7 +10,9 @@ Implemented MudMaster Commands:
 `> /chat`
 `> /chatall`
 `> /chatname`
+`> /editvariable`
 `> /emoteall`
+`> /empty`
 `> /event`
 `> /if`
 `> /itemadd`
@@ -21,6 +23,7 @@ Implemented MudMaster Commands:
 `> /loop`
 `> /showme`
 `> /unchat`
+`> /unvariable`
 `> /var`
 `> /while`
-
+`> /zap`

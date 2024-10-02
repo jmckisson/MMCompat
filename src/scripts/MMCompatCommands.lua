@@ -30,10 +30,34 @@ function MMCompat.doChatCall(str)
     chatCall(addressStr, portStr)
   end
 
-  function MMCompat.doChat(str)
+--[[
+Format: /chat
+Format: /chat {chat name} {text}
+Format: /chat {reference number} {text}
+
+Chat has two purposes. Without parameters it lists all the chat connections you
+currently have. It is also used to chat privately with another user.
+
+   * {chat name} The chat name of the person you want to send some text to.
+   * {reference number} The number of the person you want to send some text to.
+     The number is from the list of chat connections.
+   * {text} The text to send.
+
+Examples:
+
+/chat
+Displays all the chat connections you have.
+
+/chat bosozoku Heya Boso!
+Sends a private chat of "Heya Boso!" to Bosozoku.
+
+/chat 1 Hi.
+Sends a private chat of "Hi." to the first connection in your chat list.
+]]
+function MMCompat.doChat(str)
     if not chat then
-      MMCompat.error("MMCP is not implemented in this version of Mudlet")
-      return
+        MMCompat.error("MMCP is not implemented in this version of Mudlet")
+        return
     end
 
     local foundTarget = false
@@ -43,8 +67,8 @@ function MMCompat.doChatCall(str)
     foundTarget, target, strText = MMCompat.findStatement(strText)
 
     if not foundTarget then
-      MMCompat.error("Error parsing target from '"..str.."'")
-      return
+        MMCompat.error("Error parsing target from '"..str.."'")
+        return
     end
 
     local foundMessage = false
@@ -54,7 +78,7 @@ function MMCompat.doChatCall(str)
     local messageStr = MMCompat.referenceVariables(message, MMGlobals)
 
     chat(targetStr, messageStr)
-  end
+end
 
   function MMCompat.doChatAll(str)
     if not chatAll then
@@ -448,6 +472,11 @@ Creates a new user defined list.
 ]]
 function MMCompat.listAdd(name, group)
     MMGlobals[name] = MMGlobals[name] or {}
+
+    local tblIdx = MMCompat.index_of(MMCompat.save.lists, name)
+    if not tblIdx then
+        table.insert(MMCompat.save.lists, name)
+    end
 end
 
 
@@ -478,6 +507,11 @@ function MMCompat.listCopy(from, to)
     local toName = to and to or from.."Copy"
 
     MMGlobals[toName] = table.deepcopy(from)
+
+    local tblIdx = MMCompat.index_of(MMCompat.save.lists, toName)
+    if not tblIdx then
+        table.insert(MMCompat.save.lists, toName)
+    end
 end
 
 --[[
@@ -505,6 +539,11 @@ Deletes a user defined list and any items in the list.
 ]]
 function MMCompat.listDelete(name)
     table.remove(MMGlobals[name])
+
+    local tblIdx = MMCompat.index_of(MMCompat.save.lists, name)
+    if tblIdx then
+        table.remove(MMCompat.save.lists, name)
+    end
 end
 
 local is_int = function(n)
@@ -662,6 +701,17 @@ function MMCompat.makeAction(m)
     local trigId = permRegexTrigger(ptrn, treeGroup, {pattern}, commands)
 
     MMCompat.debug("trigId: " .. trigId)
+
+    local actionTbl = {
+        pattern = ptrn,
+        cmd = cmdsStmt,
+        group = treeGroup
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.actions, actionTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.actions, actionTbl)
+    end
 end
 
 --[[
@@ -767,6 +817,21 @@ function MMCompat.makeAlias2(str)
     local treeGroup = MMCompat.createParentGroup(aliasGroup, "alias", "MMAliases")
 
     permAlias(aliasPattern, treeGroup, pattern, commands)
+
+    local aliasTbl = {
+        pattern = aliasPattern,
+        cmd = aliasCommands,
+        group = treeGroup
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.aliases, aliasTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.aliases, aliasTbl)
+    end
+end
+
+function MMCompat.editAlias(str)
+
 end
 
 -- name, frequency, commands, group
@@ -784,6 +849,17 @@ function MMCompat.makeEvent(name, freq, cmds, group)
     MMCompat.createParentGroup(group, itemType, itemParent)
 
     permTimer(name, group, freq, commands)
+
+    local eventTbl = {
+        name = name,
+        freq = freq,
+        group = group
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.events, eventTbl)
+    end
 end
 
 -- name, value, group
@@ -884,4 +960,89 @@ function MMCompat.makeVariable2(strText)
       MMCompat.warning(string.format("Value type (%s) is not a number or string!", valueType))
     end
 
+    local varIdx = table.index_of(MMCompat.save.variables.varName)
+    if not varIdx then
+        table.insert(MMCompat.save.variables, varName)
+    end
+
+end
+
+function MMCompat.doUnVariable(str)
+    local foundVar = false
+    local varName = ""
+    local strText = str
+
+    MMCompat.debug("doUnVariable finding VAR, strText:")
+    if MMCompat.isDebug then
+        display(strText)
+        echo("\n")
+        display(MMGlobals)
+        echo("\n")
+    end
+    foundVar, varName, strText = MMCompat.findStatement(strText)
+
+    if not foundVar then
+      MMCompat.error("Error parsing variable name from '" .. strText.."'")
+      return
+    end
+
+    MMCompat.debug("varName: " .. varName)
+
+    MMGlobals[varName] = nil
+    local varIdx = table.index_of(MMCompat.save.variables, varName)
+    table.remove(MMCompat.save.variables, varIdx)
+end
+
+function MMCompat.doEmpty(str)
+    local foundVar = false
+    local varName = ""
+    local strText = str
+
+    MMCompat.debug("doEmpty finding VAR, strText:")
+    if MMCompat.isDebug then
+        display(strText)
+        echo("\n")
+        display(MMGlobals)
+        echo("\n")
+    end
+    foundVar, varName, strText = MMCompat.findStatement(strText)
+
+    if not foundVar then
+      MMCompat.error("Error parsing variable name from '" .. strText.."'")
+      return
+    end
+
+    MMCompat.debug("varName: " .. varName)
+
+    MMGlobals[varName] = ""
+
+    local varIdx = table.index_of(MMCompat.save.variables, varName)
+    if not varIdx then
+        table.insert(MMCompat.save.variables, varName)
+    end
+end
+
+function MMCompat.doEditVariable(str)
+    local foundVar = false
+    local varName = ""
+    local strText = str
+
+    MMCompat.debug("doEmpty finding VAR, strText:")
+    if MMCompat.isDebug then
+        display(strText)
+        echo("\n")
+        display(MMGlobals)
+        echo("\n")
+    end
+    foundVar, varName, strText = MMCompat.findStatement(strText)
+
+    if not foundVar then
+      MMCompat.error("Error parsing variable name from '" .. strText.."'")
+      return
+    end
+
+    MMCompat.debug("varName: " .. varName)
+
+    clearCmdLine()
+    appendCmdLine("/variable {"..varName.."} {"..MMGlobals[varName].."}")
 end
