@@ -67,7 +67,7 @@ function MMCompat.doChat(str)
     foundTarget, target, strText = MMCompat.findStatement(strText)
 
     if not foundTarget then
-        MMCompat.error("Error parsing target from '"..str.."'")
+        chatList()
         return
     end
 
@@ -80,22 +80,21 @@ function MMCompat.doChat(str)
     chat(targetStr, messageStr)
 end
 
-  function MMCompat.doChatAll(str)
+function MMCompat.doChatAll(str)
     if not chatAll then
-      MMCompat.error("MMCP is not implemented in this version of Mudlet")
-      return
+        MMCompat.error("MMCP is not implemented in this version of Mudlet")
+        return
     end
 
     local messageStr = MMCompat.referenceVariables(str, MMGlobals)
 
     chatAll(messageStr)
-  end
+end
 
-  function MMCompat.doChatName(str)
-
+function MMCompat.doChatName(str)
     if not chatName then
-      MMCompat.error("MMCP is not implemented in this version of Mudlet")
-      return
+        MMCompat.error("MMCP is not implemented in this version of Mudlet")
+        return
     end
 
     local strText = str
@@ -105,48 +104,48 @@ end
     foundName, name, strText = MMCompat.findStatement(strText)
 
     if not foundName then
-      MMCompat.error("Error parsing chatName from '"..str.."'")
-      return
+        MMCompat.error("Error parsing chatName from '"..str.."'")
+        return
     end
 
     local nameStr = MMCompat.referenceVariables(name, MMGlobals)
 
     chatName(nameStr)
-  end
+end
 
-  function MMCompat.doEmoteAll(str)
+function MMCompat.doEmoteAll(str)
     if not chatEmoteAll then
-      MMCompat.error("MMCP is not implemented in this version of Mudlet")
-      return
+        MMCompat.error("MMCP is not implemented in this version of Mudlet")
+        return
     end
 
     local messageStr = MMCompat.referenceVariables(str, MMGlobals)
 
     local emoteStr = "says, '" .. messageStr .. "'"
     chatEmoteAll(emoteStr)
-  end
+end
 
-  function MMCompat.doUnChat(str)
+function MMCompat.doUnChat(str)
     if not chatUnChat then
         MMCompat.error("MMCP is not implemented in this version of Mudlet")
         return
-      end
-  
-      local foundTarget = false
-      local target = ""
-      local strText = str
-  
-      foundTarget, target, strText = MMCompat.findStatement(strText)
-  
-      if not foundTarget then
+    end
+
+    local foundTarget = false
+    local target = ""
+    local strText = str
+
+    foundTarget, target, strText = MMCompat.findStatement(strText)
+
+    if not foundTarget then
         MMCompat.error("Error parsing target from '"..str.."'")
         return
-      end
+    end
 
-      local targetStr = MMCompat.referenceVariables(target, MMGlobals)
-  
-      chatUnChat(targetStr)
-  end
+    local targetStr = MMCompat.referenceVariables(target, MMGlobals)
+
+    chatUnChat(targetStr)
+end
 
 --[[
 Format: /if {conditional statement} {then} {else}
@@ -763,7 +762,6 @@ end
 --]]
 
 function MMCompat.makeAlias2(str)
-
     local strText = str
     local foundPattern = false
     local aliasPattern = ""
@@ -859,6 +857,115 @@ function MMCompat.makeEvent(name, freq, cmds, group)
     local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
     if not tblIdx then
         table.insert(MMCompat.save.events, eventTbl)
+    end
+end
+
+--[[
+Format: /event {name} {frequency} {event actions} {group}
+
+Event causes some actions to be taken when a certain amount of time has passed.
+{frequency} is the amount of time in seconds to pass before firing the event.
+You can create as many events as you like.  Duplicate frequencies are valid;
+so you could create several events to fire every 10 seconds.
+
+   * {name} The name of the event.
+   * {frequency} The number of seconds until the event fires.
+   * {event actions} The commands to do when the event fires.
+   * {group} Optional, see the user guide for help on groups.
+
+Typing /event by itself will list all the events you have defined. When you
+list the events you are also shown the time left before the event fires.
+
+001: {Jumper} {F:30} {T:14} {jump}
+This is an example of an event listing. This first parameter is the name of the
+event.  F: shows you the frequency you have set for the event.  T: shows how
+much time is left before the event gets fired. The last part contains the event
+actions to be taken when the event is fired.
+
+/event {Jumper} {30} {jump}
+This will create an event called Jumper that jumps every 30 seconds.
+]]
+function MMCompat.makeEvent2(str)
+    local strText = str
+    local foundName = false
+    local eventName = ""
+
+    if str and str ~= "" then
+        foundName, eventName, strText = MMCompat.findStatement(strText)
+    end
+
+    if not foundName then
+        MMCompat.listEvents()
+        return
+    end
+
+    local foundFreq = false
+    local eventFreq = ""
+
+    foundFreq, eventFreq, strText = MMCompat.findStatement(strText)
+
+    if not foundFreq then
+        MMCompat.error("Unable to parse event frequency from '"..str.."'")
+        return
+    end
+
+    local foundActions = false
+    local eventActions = ""
+
+    foundActions, eventActions, strText = MMCompat.findStatement(strText)
+
+    if not foundActions then
+        MMCompat.error("Unable to parse event actions from '"..str.."'")
+        return
+    end
+
+    local foundGroup = false
+    local eventGroup = nil
+
+    foundGroup, eventGroup, strText = MMCompat.findStatement(strText)
+
+    local commands = MMCompat.parseCommands(eventActions, false, false)
+
+    local itemType = "timer"
+    local itemParent = "MMEvents"
+    if eventGroup ~= "" then
+        itemParent = eventGroup
+    end
+
+    if exists(eventName, itemType) ~= 0 then
+      MMCompat.echo("Event with the name '" .. eventName .. "' already exists")
+      return
+    end
+
+    local treeGroup = MMCompat.createParentGroup(eventGroup, itemType, itemParent)
+
+    permTimer(eventName, treeGroup, eventFreq, commands)
+
+    enableTimer(eventName)
+
+    local eventTbl = {
+        name = eventName,
+        freq = eventFreq,
+        cmd = eventActions,
+        group = treeGroup
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.events, eventTbl)
+    end
+end
+
+function MMCompat.listEvents()
+    echo("# Defined Events:\n")
+    for k, v in pairs(MMCompat.save.events) do
+        if exists(v.name, "timer") ~= 0 then
+            local evtTime = remainingTime(v.name) or v.freq
+
+            echo(string.format("%03s: {%s} {F:%d} {T:%d} {%s}\n",
+                tonumber(k), v.name, v.freq, evtTime, v.cmd))
+
+        end
     end
 end
 

@@ -224,7 +224,7 @@ function MMCompat.procWord(str, n)
       return false
     end
   
-    if isActive(eventName, "timner") == 0 then
+    if isActive(eventName, "timer") == 0 then
       MMCompat.warning(string.format("Timer '%s' is not active", eventName))
       return false
     end
