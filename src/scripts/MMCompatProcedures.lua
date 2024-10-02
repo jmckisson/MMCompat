@@ -135,11 +135,16 @@ function MMCompat.procWord(str, n)
   end
   
   function MMCompat.procGetArray(name, row, col)
-    if not MMGlobals[name] then
+    -- try to find array in arrays savelist
+
+    local found = MMCompat.findArray(name, row, col)
+
+    if not found or not MMGlobals[name] then
       MMCompat.warning("Array not found: " .. name)
       return "0"
     end
   
+    --[[
     if not MMGlobals[name][row] then
       MMCompat.warning("Index out of bounds: " .. row)
       return "0"
@@ -149,8 +154,9 @@ function MMCompat.procWord(str, n)
       MMCompat.warning("Index out of bounds: " .. row)
       return "0"
     end
+    --]]
   
-    return MMGlobals[name][row][col]
+    return MMGlobals[name]['value'][row][col]
   end
   
   

@@ -1067,7 +1067,7 @@ function MMCompat.makeVariable2(strText)
       MMCompat.warning(string.format("Value type (%s) is not a number or string!", valueType))
     end
 
-    local varIdx = table.index_of(MMCompat.save.variables.varName)
+    local varIdx = table.index_of(MMCompat.save.variables, varName)
     if not varIdx then
         table.insert(MMCompat.save.variables, varName)
     end
@@ -1152,4 +1152,204 @@ function MMCompat.doEditVariable(str)
 
     clearCmdLine()
     appendCmdLine("/variable {"..varName.."} {"..MMGlobals[varName].."}")
+end
+
+--[[
+
+Format: /array {array name} {rows} {group name}
+Format: /array {array name} {rows,columns} {group name}
+
+Array lets you create both single and two dimensional arrays. If you are not
+familiar with arrays, you can think of them like a spreadsheet. A single
+dimensional array would have only 1 column, and as many rows as you specify. A
+two dimensional array would have both rows and columns. Each cell in the array
+would be accessed by giving a row and a column number. In the case of single
+dimensional array, only a row number is needed. Each cell can hold data like a
+variable.
+
+   * {array name} The name of the array.
+   * {rows} When creating a single dimensional array, the number of rows.
+   * {rows,columns} For creating a two dimensional array.
+   * {group name} This is optional, see the user guide for help with groups.
+
+Examples:
+
+/array {Targets} {3}
+This would create an array called Targets. The array can hold up to 3 items.
+
+/array {Grid} {5,5}
+This creats a two dimensional array, or a grid. The grid has 5 rows, with 5
+columns in each row.
+
+The /array command now initializes all array elements in the new array to empty.
+When arrays are written to script files elements which are empty are not written
+into the script file.
+
+See /assign for assigning values and @getarray or @arr or @a for retrieving values
+]]
+function MMCompat.makeArray(str)
+    local strText = str
+    local foundName = false
+    local arrayName = ""
+
+    foundName, arrayName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.error("Unable to parse array name from '"..str.."'")
+        return
+    end
+
+    local foundBounds = false
+    local arrayBounds = ""
+
+    foundBounds, arrayBounds, strText = MMCompat.findStatement(strText)
+
+    if not foundBounds then
+        MMCompat.error("Unable to parse array bounds from '"..str.."'")
+        return
+    end
+
+    MMCompat.debug("bounds: " .. arrayBounds)
+
+    local foundGroup = false
+    local arrayGroup = ""
+
+    foundGroup, arrayGroup, strText = MMCompat.findStatement(strText)
+
+    local arrayRows = nil
+    local arrayCols = nil
+
+    for row, col in arrayBounds:gmatch("(%d+)%s*,?%s*(%d*)") do
+        arrayRows = tonumber(row)
+        if col ~= "" then
+            arrayCols = tonumber(col)
+        end
+        break
+    end
+
+    MMCompat.debug("rows: " .. arrayRows .. " cols: " ..arrayCols)
+
+    local arrayTbl = {
+        bounds = {rows=arrayRows, cols=arrayCols or 0},
+        name = arrayName,
+        group = arrayGroup
+    }
+
+    MMGlobals[arrayName] = {
+        value = {}
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.arrays, arrayTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.arrays, arrayTbl)
+    end
+
+end
+
+--[[
+Format: /assign {array name} {row} {value}
+Format: /assign {array name} {row,column} {value}
+
+Assign sets the value of a cell in an array.
+
+   * {array name} The name of the array.
+   * {row} For assigning cells in a single dimensional array. The number must be
+     between 1 and the number of rows you created the array with.
+   * {rows,columns} For assigning cells in a two dimensional array. The numbers
+     must be between 1 and the number of rows and columns you created the array
+     with.
+   * {value} The text or number you want to assign to the cell.
+
+Examples:
+
+/assign {Targets} {1} {Soth}
+This assigns the first cell in the array to hold the text "Soth".
+
+/assign {Grid} {2,4} {16}
+This assigns row 2, column 4 of the grid with a value of 16.
+
+See /array for defining arrays
+]]
+function MMCompat.doAssign(str)
+    local strText = str
+    local foundName = false
+    local arrayName = ""
+
+    foundName, arrayName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.error("Unable to parse array name from '"..str.."'")
+        return
+    end
+
+    local foundBounds = false
+    local arrayBounds = ""
+
+    foundBounds, arrayBounds, strText = MMCompat.findStatement(strText)
+
+    if not foundBounds then
+        MMCompat.error("Unable to parse array bounds from '"..str.."'")
+        return
+    end
+
+    MMCompat.debug("bounds: " .. arrayBounds)
+
+    local foundValue = false
+    local arrayValue = ""
+
+    foundValue, arrayValue, strText = MMCompat.findStatement(strText)
+
+    if not foundValue then
+        MMCompat.error("Unable to parse array value from '"..str.."'")
+        return
+    end
+
+    local arrayRow = nil
+    local arrayCol = nil
+
+    for row, col in arrayBounds:gmatch("(%d+)%s*,?%s*(%d*)") do
+        arrayRow = tonumber(row)
+        if col ~= "" then
+            arrayCol = tonumber(col)
+        end
+    end
+
+    local found = MMCompat.findArray(arrayName, arrayRow, arrayCol)
+
+    -- try to find array in arrays savelist
+    --[[
+    local found = false
+    for k, v in pairs(MMCompat.save.arrays) do
+        if v.name == arrayName then
+            found = true
+            -- check bounds
+            if arrayRow > v.bounds.rows then
+                MMCompat.error(string.format("Array '%s' row index out of bounds, given %d, bounds %d",
+                    v.name, arrayRow, v.bounds.row))
+                return
+            end
+            if v.bounds.cols and arrayCol and arrayCol > v.bounds.cols then
+                MMCompat.error(string.format("Array '%s' col index out of bounds, given %d, bounds %d",
+                    v.name, arrayCol, v.bounds.col))
+                return
+            end
+            break
+        end
+    end
+    --]]
+
+    if not found then
+        MMCompat.warning(string.format("Array '%s' not found", arrayName))
+        return
+    end
+
+    MMGlobals[arrayName]['value'][arrayRow] = MMGlobals[arrayName]['value'][arrayRow] or {}
+
+    if arrayCol then
+
+        MMGlobals[arrayName]['value'][arrayRow][arrayCol] = arrayValue
+    else
+        MMGlobals[arrayName]['value'][arrayRow] = arrayValue
+    end
+
 end

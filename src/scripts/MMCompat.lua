@@ -16,6 +16,7 @@ MMCompat = MMCompat or {
   save = {
     actions = {},
     aliases = {},
+    arrays = {},
     events = {},
     lists = {},
     macros = {},
@@ -525,6 +526,74 @@ function MMCompat.executeString(cmds)
   return result
 end
 
+function MMCompat.findArray(name, row, col)
+  local found = false
+  for k, v in pairs(MMCompat.save.arrays) do
+      if v.name == name then
+          found = true
+          -- check bounds
+          if row > v.bounds.rows then
+              MMCompat.error(string.format("Array '%s' row index out of bounds, given %d, bounds %d",
+                  v.name, row, v.bounds.row))
+              return
+          end
+          if v.bounds.cols and col and col > v.bounds.cols then
+              MMCompat.error(string.format("Array '%s' col index out of bounds, given %d, bounds %d",
+                  v.name, col, v.bounds.col))
+              return
+          end
+          break
+      end
+  end
+
+  return found
+end
+
+function MMCompat.audit()
+  for k, v in pairs(MMCompat.save.actions) do
+    if exists(v.pattern, "trigger") == 0 then
+      MMCompat.warning("Action " ..v.pattern.." does not exist\n")
+    end
+  end
+
+  for k, v in pairs(MMCompat.save.aliases) do
+    if exists(v.pattern, "alias") == 0 then
+      MMCompat.warning("Alias " ..v.pattern.." does not exist\n")
+    end
+  end
+
+  for k, v in pairs(MMCompat.save.events) do
+    if exists(v.name, "timer") == 0 then
+      MMCompat.warning("Event " ..v.name.." does not exist\n")
+    end
+  end
+
+  for k, v in pairs(MMCompat.save.arrays) do
+    if not MMGlobals[v] then
+      MMCompat.warning("Array " ..v.." does not exist\n")
+      MMGlobals[v] = {
+        bounds = v.bounds,
+        name = v.name,
+        value = {}
+      }
+    end
+  end
+
+  for k, v in pairs(MMCompat.save.lists) do
+    if not MMGlobals[v] then
+      MMCompat.warning("List " ..v.." does not exist\n")
+      MMGlobals[v] = {}
+    end
+  end
+
+  for k, v in pairs(MMCompat.save.variables) do
+    if not MMGlobals[v] then
+      MMCompat.warning("Variable " ..v.." does not exist\n")
+      MMGlobals[v] = ""
+    end
+  end
+end
+
 
 function MMCompat.config()
 
@@ -541,6 +610,8 @@ function MMCompat.config()
     MMCompat.functions = {
       {name="action",       pattern=[[^/action (.*)$]],                                           cmd=[[MMCompat.makeAction2(matches[2])]]},
       {name="alias",        pattern=[[^/alias (.*)$]],                                            cmd=[[MMCompat.makeAlias2(matches[2])]]},
+      {name="array",        pattern=[[^/array (.*)$]],                                            cmd=[[MMCompat.makeArray(matches[2])]]},
+      {name="assign",       pattern=[[^/assign (.*)$]],                                           cmd=[[MMCompat.doAssign(matches[2])]]},
       {name="editvariable", pattern=[[^/editvariable (.*)$]],                                     cmd=[[MMCompat.doEditVariable(matches[2])]]},
       {name="empty",        pattern=[[^/empty (.*)$]],                                            cmd=[[MMCompat.doEmpty(matches[2])]]},
       {name="event",        pattern=[[^/event\s*(.*)?$]],                                         cmd=[[MMCompat.makeEvent2(matches[2])]]},
@@ -570,8 +641,7 @@ function MMCompat.config()
 
     --      {name="event",        pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]],      cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
 
-
-    
+    --MMCompat.audit()
 
     for _,v in pairs(MMCompat.functions) do
       local aliasId = tempAlias(v.pattern, v.cmd)
@@ -580,10 +650,12 @@ function MMCompat.config()
     end
 
     MMCompat.procedures = {
+      {name="A",              cmd=MMCompat.procGetArray},
       {name="Abs",            cmd=function(val) return math.abs(val) end},
       {name="AnsiBold",       cmd=function() return "\27[1m" end},
       {name="AnsiReset",      cmd=function() return "\27[0m" end},
       {name="AnsiReverse",    cmd=function() return "\27[7m" end},
+      {name="Arr",            cmd=MMCompat.procGetArray},
       {name="Asc",            cmd=MMCompat.procAsc},
       {name="BackBlack",      cmd=function(val) return "\27[40m" end},
       {name="BackBlue",       cmd=function(val) return "\27[44m" end},
@@ -693,6 +765,7 @@ function MMCompat.loadData()
 
   MMCompat.save.actions = MMCompat.save.actions or {}
   MMCompat.save.aliases = MMCompat.save.actions or {}
+  MMCompat.save.arrays = MMCompat.save.arrays or {}
   MMCompat.save.events = MMCompat.save.actions or {}
   MMCompat.save.lists = MMCompat.save.lists or {}
   MMCompat.save.macros = MMCompat.save.macros or {}
