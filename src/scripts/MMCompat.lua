@@ -875,11 +875,11 @@ function MMCompat.config()
 
     tempTimer(.25, [[MMCompat.display_info()]])
 
-    --for _,v in pairs(MMCompat.functions) do
-    --  local aliasId = tempAlias(v.pattern, v.cmd)
+    for _,v in pairs(MMCompat.functions) do
+      local aliasId = tempAlias(v.pattern, v.cmd)
     --  cecho(string.format("\n<white>[<indian_red>MMCompat<white>] Loaded <LawnGreen>%s <white>command, id: <green>%d", v.name, aliasId))
-    --  table.insert(MMCompat.scriptAliases, aliasId)
-    --end
+      table.insert(MMCompat.scriptAliases, aliasId)
+    end
 
 end
 
