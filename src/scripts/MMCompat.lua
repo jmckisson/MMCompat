@@ -13,6 +13,8 @@ MMCompat = MMCompat or {
   scriptAliases = {},
   maxWhileLoop = 100,
   version = "__VERSION__" or "NotMuddledYet",
+  helpAliasId = nil,
+  helpEntries = 1,
   save = {
     actions = {},
     aliases = {},
@@ -25,6 +27,44 @@ MMCompat = MMCompat or {
 }
 
 MMGlobals = MMGlobals or {}
+
+MMCompat.help = {[[
+<cyan>MMCompat - MudMaster Compatibility<reset>
+
+  MMCompat aims to provide command-line scriptability using the MudMaster script
+  API. MudMaster commands can be entered on the Mudlet command-line and will be
+  interpreted by this script and converted to Mudlet commands. Actions, Aliases,
+  Events, such as /action, /alias, /event will be created as Mudlet Triggers,
+  Aliases and Timers accordingly. Other commands such as /variable will create
+  a variable in the global MMGlobal namespace which are used when the $ expansion
+  occurs in MudMaster commands.
+
+  ***Important Note***
+  MudMaster uses a semicolon ; as a command separator, by default Mudlet uses two
+  semicolons ;;. MMCompat will not function properly if you have changed your
+  Mudlet command separator to a single semicolon!
+
+<cyan>MudMaster Commands:<reset>
+
+  Commands are prefixed by a forward-slash /.
+
+    <link: action>action</link>  - Create an Action (Mudlet trigger)
+    <link: alias>alias</link>   - Create an Alias
+    <link: array>array</link>   - Create an array
+    <link: assign>assign</link>  - Assign a variable to an array
+    <link: event>event</link>   - Create an Event (Mudlet timer)
+
+  All Commands:
+    <show_all>
+
+<cyan>MudMaster Procedures:<reset>
+
+  Procedures are special commands prefixed by the @ character and can be used
+  in-line with Commands. Example: /chatall @AnsiReset()@ForeBlue()hello!
+  will chat 'hello!' to all chat connections with the normal blue color.
+
+]]
+}
 
 local runQueue
 function runQueue(fnc,tbl)
@@ -80,6 +120,104 @@ end
 
 function MMCompat.error(msg)
   cecho(string.format("\n<white>[<indian_red>MMCompat <red>Error<white>] %s", msg))
+end
+
+function MMCompat.add_help(cmd, entry)
+  MMCompat.helpEntries = MMCompat.helpEntries + 1
+  MMCompat.help[cmd] = entry
+  MMCompat.helpCmds = MMCompat.helpCmds or {}
+  table.insert(MMCompat.helpCmds, cmd)
+end
+
+--[[
+Help funcion, adapted from generic_mapper
+]]
+function MMCompat.show_help(cmd)
+  if cmd and cmd ~= "" then
+      --if cmd:starts("map ") then cmd = cmd:sub(5) end
+      cmd = cmd:lower():gsub(" ","_")
+      if not MMCompat.help[cmd] then
+          MMCompat.echo("No help file on that command.")
+      end
+  else
+      cmd = 1
+  end
+
+  for w in MMCompat.help[cmd]:gmatch("[^\n]*\n") do
+
+    -- Special tag to show all commands with links
+    if w:find("<show_all>") then
+      -- Show all commands from MMCompat.helpCmds
+      local sorted_cmds = {}
+      for _, help_cmd in pairs(MMCompat.helpCmds) do
+          table.insert(sorted_cmds, help_cmd)
+      end
+
+      -- Sort the commands alphabetically
+      table.sort(sorted_cmds)
+
+      local lineCount = 0
+      for _, help_cmd in pairs(sorted_cmds) do
+          cecho(" ")
+          fg("yellow")
+          setUnderline(true)
+          echoLink(help_cmd, [[MMCompat.show_help("]] .. help_cmd .. [[")]], "View: " .. help_cmd, true)
+          setUnderline(false)
+          resetFormat()
+          lineCount = lineCount + 1
+          if lineCount == 10 then
+            echo("\n")
+            lineCount = 0
+          end
+      end
+      echo("\n")
+
+    elseif w:find("<related>") then
+      -- Search for related commands based on keywords from the current help text
+      local current_help_text = MMCompat.help[cmd]:lower()
+      for help_cmd, help_text in pairs(MMCompat.help) do
+          -- If the current help text contains any part of the other help text, it's considered related
+          if help_cmd ~= cmd and current_help_text:find(help_cmd) then
+              cecho("\n")
+              fg("green")
+              setUnderline(true)
+              echoLink(help_cmd, [[MMCompat.show_help("]] .. help_cmd .. [[")]], "Related: " .. help_cmd, true)
+              setUnderline(false)
+              resetFormat()
+          end
+      end
+      echo("\n")
+
+    else
+
+      -- handle <url> and <link> tags
+      local url, target = rex.match(w, [[<(url)?link: ([^>]+)>]])
+      -- lrexlib returns a non-capture as 'false', so determine which variable the capture went into
+      if target == nil then target = url end
+      if target then
+          local before, linktext, _, link, _, after, ok = rex.match(w,
+                        [[(.*)<((url)?link): [^>]+>(.*)<\/(url)?link>(.*)]], 0, 'm')
+          -- could not get rex.match to capture the newline - fallback to string.match
+          local _, _, after = w:match("(.*)<u?r?l?link: [^>]+>(.*)</u?r?l?link>(.*)")
+
+          cecho(before)
+          fg("yellow")
+          setUnderline(true)
+          if linktext == "urllink" then
+              echoLink(link, [[openWebPage("]]..target..[[")]], "Open webpage", true)
+          elseif target ~= "1" then
+              echoLink(link,[[MMCompat.show_help("]]..target..[[")]],"View: MMCompat help " .. target,true)
+          else
+              echoLink(link,[[MMCompat.show_help()]],"View: MMCompat help",true)
+          end
+          setUnderline(false)
+          resetFormat()
+          if after then cecho(after) end
+      else
+          cecho(w)
+      end
+    end
+  end
 end
 
 
@@ -608,14 +746,14 @@ function MMCompat.config()
     local nested3MatchPattern = [[(?:{(.+?)}|(\w+))\s+(?:{(.+?)}|(.+?))\s*(?:{((?:[^{}]|\{[^{}]*\})*)})?$]]
 
     MMCompat.functions = {
-      {name="action",       pattern=[[^/action (.*)$]],                                           cmd=[[MMCompat.makeAction2(matches[2])]]},
-      {name="alias",        pattern=[[^/alias (.*)$]],                                            cmd=[[MMCompat.makeAlias2(matches[2])]]},
+      {name="action",       pattern=[[^/action (.*)$]],                                           cmd=[[MMCompat.makeAction(matches[2])]]},
+      {name="alias",        pattern=[[^/alias (.*)$]],                                            cmd=[[MMCompat.makeAlias(matches[2])]]},
       {name="array",        pattern=[[^/array (.*)$]],                                            cmd=[[MMCompat.makeArray(matches[2])]]},
       {name="assign",       pattern=[[^/assign (.*)$]],                                           cmd=[[MMCompat.doAssign(matches[2])]]},
       {name="editvariable", pattern=[[^/editvariable (.*)$]],                                     cmd=[[MMCompat.doEditVariable(matches[2])]]},
       {name="empty",        pattern=[[^/empty (.*)$]],                                            cmd=[[MMCompat.doEmpty(matches[2])]]},
-      {name="event",        pattern=[[^/event\s*(.*)?$]],                                         cmd=[[MMCompat.makeEvent2(matches[2])]]},
-      {name="if",           pattern=[[^/if (.*)$]],                                               cmd=[[MMCompat.doIf2(matches[2])]]},
+      {name="event",        pattern=[[^/event\s*(.*)?$]],                                         cmd=[[MMCompat.makeEvent(matches[2])]]},
+      {name="if",           pattern=[[^/if (.*)$]],                                               cmd=[[MMCompat.doIf(matches[2])]]},
       {name="itemadd",      pattern=[[^/itema(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],    cmd=[[MMCompat.itemAdd(matches)]]},
       {name="listadd",      pattern=[[^/lista(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],    cmd=[[MMCompat.listAdd(matches[2], matches[3])]]},
       {name="itemdelete",   pattern=[[^/itemd(?:elete)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemDelete(matches[2], matches[3])]]},
@@ -624,15 +762,15 @@ function MMCompat.config()
       {name="clearlist",    pattern=[[^/clearlist (.*)$]],                                        cmd=[[MMCompat.clearList(matches[2])]]},
       {name="loop",         pattern=[[^/loop (.*)$]],                                             cmd=[[MMCompat.doLoop(matches[2])]]},
       {name="showme",       pattern=[[^/showme (?:{(.+?)}|(.+?))$]],                              cmd=[[MMCompat.doShowme(matches)]]},
-      {name="variable",     pattern=[[^/var(?:iable)? (.*)$]],                                    cmd=[[MMCompat.makeVariable2(matches[2])]]},
+      {name="variable",     pattern=[[^/var(?:iable)? (.*)$]],                                    cmd=[[MMCompat.makeVariable(matches[2])]]},
       {name="while",        pattern=[[^/while (.*)$]],                                            cmd=[[MMCompat.doWhile(matches[2])]]},
       {name="call",         pattern=[[^/call (.*)$]],                                             cmd=[[MMCompat.doChatCall(matches[2])]]},
       {name="chat",         pattern=[[^/chat\s*(.*)$]],                                           cmd=[[MMCompat.doChat(matches[2])]]},
       {name="chatall",      pattern=[[^/chata(?:ll)? (.*)$]],                                     cmd=[[MMCompat.doChatAll(matches[2])]]},
-      {name="chatname",     pattern=[[^/chatn(?:ame)? (.*)$]],                                     cmd=[[MMCompat.doChatName(matches[2])]]},
-      {name="emoteall",     pattern=[[^/emotea(?:ll)? (.*)$]],                                     cmd=[[MMCompat.doEmoteAll(matches[2])]]},
+      {name="chatname",     pattern=[[^/chatn(?:ame)? (.*)$]],                                    cmd=[[MMCompat.doChatName(matches[2])]]},
+      {name="emoteall",     pattern=[[^/emotea(?:ll)? (.*)$]],                                    cmd=[[MMCompat.doEmoteAll(matches[2])]]},
       {name="unchat",       pattern=[[^/unchat (.*)$]],                                           cmd=[[MMCompat.doUnChat(matches[2])]]},
-      {name="unvariable",   pattern=[[^/unvar(?:iable)? (.*)$]],                                    cmd=[[MMCompat.doUnVariable(matches[2])]]},
+      {name="unvariable",   pattern=[[^/unvar(?:iable)? (.*)$]],                                  cmd=[[MMCompat.doUnVariable(matches[2])]]},
       {name="zap",          pattern=[[^/zap$]],                                                   cmd=[[disconnect()]]},
       --{name="", pattern=[[]], cmd=[[]]},
       --{name="", pattern=[[]], cmd=[[]]},
@@ -643,11 +781,6 @@ function MMCompat.config()
 
     --MMCompat.audit()
 
-    for _,v in pairs(MMCompat.functions) do
-      local aliasId = tempAlias(v.pattern, v.cmd)
-      cecho(string.format("\n<white>[<indian_red>MMCompat<white>] Loaded <LawnGreen>%s <white>command, id: <green>%d", v.name, aliasId))
-      table.insert(MMCompat.scriptAliases, aliasId)
-    end
 
     MMCompat.procedures = {
       {name="A",              cmd=MMCompat.procGetArray},
@@ -740,6 +873,26 @@ function MMCompat.config()
 
     }
 
+    tempTimer(.25, [[MMCompat.display_info()]])
+
+    --for _,v in pairs(MMCompat.functions) do
+    --  local aliasId = tempAlias(v.pattern, v.cmd)
+    --  cecho(string.format("\n<white>[<indian_red>MMCompat<white>] Loaded <LawnGreen>%s <white>command, id: <green>%d", v.name, aliasId))
+    --  table.insert(MMCompat.scriptAliases, aliasId)
+    --end
+
+end
+
+function MMCompat.display_info()
+  MMCompat.echo(string.format("MudMaster Compatibility v <yellow>%s <white>loaded...", MMCompat.version))
+  MMCompat.echo(string.format("    <green>%d <white>commands, <green>%d <white>procedures, <green>%d <white>help entries",
+    #MMCompat.functions, #MMCompat.procedures, MMCompat.helpEntries))
+  MMCompat.echo("Type /help for the MudMaster help system")
+
+  if getCommandSeparator() == ';' then
+    MMCompat.warning("You have defined your Mudlet command separator as a single semicolon")
+    MMCompat.warning("This will interfere with the functionality of MMCompat!")
+  end
 end
 
 
@@ -779,6 +932,12 @@ if not MMCompat.isInitialized then
   math.randomseed(os.time())
   MMCompat.config()
 end
+
+if MMCompat.helpAliasId then
+  killAlias(MMCompat.helpAliasId)
+end
+
+MMCompat.helpAliasId = tempAlias([[^/help(?: (.*))?]], [[MMCompat.show_help(matches[2])]])
 
 if exists("MMActions", "trigger") == 0 then
   permGroup("MMActions", "trigger")

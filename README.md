@@ -6,6 +6,8 @@ Implemented MudMaster Commands:
 
 `> /action`
 `> /alias`
+`> /array`
+`> /assign`
 `> /call`
 `> /chat`
 `> /chatall`
@@ -15,7 +17,7 @@ Implemented MudMaster Commands:
 `> /empty`
 `> /event`
 `> /if`
-`> /itemadd`
+`> /itemadd` 
 `> /itemdelete`
 `> /listadd`
 `> /listcopy`

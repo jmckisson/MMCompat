@@ -1,3 +1,18 @@
+MMCompat.add_help('call', [[
+Format: /call {address} {port}
+
+Call establishes a link with another user using a client with a compatible
+chat protocol, such as zMud, TinTin++, etc, as well as other MudMaster users.
+If you are connected with another MudMaster user you can chat, transfer
+commands and transfer files. The number of people you can be connected to at
+one time is limited only by the number of socket connections windows will let
+you have.
+
+   * {address} The address of the person you wish to call. This can be either
+     a named address or an IP address.
+   * {port} The port is optional. If you don't specify a port number Mud
+     Master will use a default of 4050.
+]])
 function MMCompat.doChatCall(str)
     if not chatCall then
       MMCompat.error("MMCP is not implemented in this version of Mudlet")
@@ -30,7 +45,7 @@ function MMCompat.doChatCall(str)
     chatCall(addressStr, portStr)
   end
 
---[[
+MMCompat.add_help('chat', [[
 Format: /chat
 Format: /chat {chat name} {text}
 Format: /chat {reference number} {text}
@@ -53,7 +68,7 @@ Sends a private chat of "Heya Boso!" to Bosozoku.
 
 /chat 1 Hi.
 Sends a private chat of "Hi." to the first connection in your chat list.
-]]
+]])
 function MMCompat.doChat(str)
     if not chat then
         MMCompat.error("MMCP is not implemented in this version of Mudlet")
@@ -80,6 +95,17 @@ function MMCompat.doChat(str)
     chat(targetStr, messageStr)
 end
 
+MMCompat.add_help('chatall', [[
+Format: /chatall {text}
+
+Sends text to all of your chat connections.
+
+   * {text} The text to send.
+
+Example:
+
+/chatall Hi.
+]])
 function MMCompat.doChatAll(str)
     if not chatAll then
         MMCompat.error("MMCP is not implemented in this version of Mudlet")
@@ -91,6 +117,14 @@ function MMCompat.doChatAll(str)
     chatAll(messageStr)
 end
 
+MMCompat.add_help('chatname', [[
+Format: /chatname {name}
+
+Sets your chat name. You must set a chat name before you can make any chat
+calls.
+
+   * {name} The name you wish to be known by.
+]])
 function MMCompat.doChatName(str)
     if not chatName then
         MMCompat.error("MMCP is not implemented in this version of Mudlet")
@@ -113,6 +147,13 @@ function MMCompat.doChatName(str)
     chatName(nameStr)
 end
 
+MMCompat.add_help('emoteall', [[
+Format: /emoteall {text}
+
+Sends an emote to all of your chat connections.
+
+   * {text} The text to send.
+]])
 function MMCompat.doEmoteAll(str)
     if not chatEmoteAll then
         MMCompat.error("MMCP is not implemented in this version of Mudlet")
@@ -125,6 +166,16 @@ function MMCompat.doEmoteAll(str)
     chatEmoteAll(emoteStr)
 end
 
+MMCompat.add_help('unchat', [[
+Format: /unchat {reference number}
+Format: /unchat {chat name}
+
+UnChat hangs up a chat connection.
+
+   * {reference number} The number of the chat connection you want to hang
+     up on.
+   * {chat name} The name of the chat connection you want to hang up on.
+]])
 function MMCompat.doUnChat(str)
     if not chatUnChat then
         MMCompat.error("MMCP is not implemented in this version of Mudlet")
@@ -147,7 +198,7 @@ function MMCompat.doUnChat(str)
     chatUnChat(targetStr)
 end
 
---[[
+MMCompat.add_help('if', [[
 Format: /if {conditional statement} {then} {else}
 
 If commands need to be activated in some fashion in order to be evaluated. Most
@@ -194,51 +245,8 @@ either Atlas or Breedan, and if it is, would spit on them.
 
 NOTE:  Make sure you put double quotes around string variables within if
        conditions.
-]]
---[[
-function MMCompat.doIf(condition, thenCode, elseCode)
-
-  if MMCompat.isDebug then
-    local dbgTbl = {
-      condition = condition,
-      thenCode = thenCode,
-      elseCode = elseCode
-    }
-
-    echo("doIf\n")
-    display(dbgTbl)
-  end
-
-  local parsedCondition = "return " .. MMCompat.replaceVariables(condition, false)
-  local thenCommands = MMCompat.parseCommands(thenCode, false, false)
-  local elseCommands = MMCompat.parseCommands(elseCode, false, false)
-
-  if MMCompat.isDebug then
-    local dbgTbl = {
-      parsedCondition = parsedCondition,
-      thenCmds = thenCommands,
-      elseCmds = elseCommands
-    }
-
-    echo("IF debug:\n")
-    display(dbgTbl)
-
-    echo(string.format("IF {%s} {%s} {%s}\n", parsedCondition, thenCommands, elseCommands))
-  end
-
-  local result = MMCompat.executeString(parsedCondition)
-
-  if result then
-    -- execute then condition
-    MMCompat.executeString(thenCommands)
-  else
-    -- execute else condition
-    MMCompat.executeString(elseCommands)
-  end
-end
-]]
-
-function MMCompat.doIf2(strText)
+]])
+function MMCompat.doIf(strText)
     local foundCondition = false
     local stmt = ""
     local foundThen = false
@@ -282,7 +290,7 @@ function MMCompat.doIf2(strText)
     end
 
 
---[[
+MMCompat.add_help('loop', [[
 Format: /loop {start,end,variable name} {commands}
 
 Loop increments or decrements a number from start to end. Each time the number
@@ -304,8 +312,7 @@ This does exactly the opposite. The number is decremented rather than
 incremented and would send the text: "look 3.man" "look 2.man" "look 1.man".
 Since there was no variable name specified to store the Loop number it is
 stored in "$LoopCount".
-]]
---function MMCompat.doLoop(loopBounds, loopVar, cmds)
+]])
 function MMCompat.doLoop(strText)
     --[[
     if MMCompat.isDebug then
@@ -374,7 +381,7 @@ function MMCompat.doLoop(strText)
 end
 
 
---[[
+MMCompat.add_help('while', [[
 Format: /while {condition} {commands}
 
 While executes the command as long as the condition is true.
@@ -390,7 +397,7 @@ an infinite loop is this: /while {1 = 1} {say doh!} This while will never stop
 executing and the program will appear locked up. The idea behind the while is
 to create a condition that uses variables. Somewhere in the commands portion
 you would set a variable causing the loop to fail.
-]]
+]])
 function MMCompat.doWhile(strText)
     local foundCondition = false
     local conditionStmt = ""
@@ -434,14 +441,14 @@ function MMCompat.doWhile(strText)
 end
 
 
---[[
+MMCompat.add_help('showme', [[
 Format: /showme {text}
 
 Showme will echo the text to the terminal screen. The text is not sent to the
 mud.
 
     * {text} Text to display.
-]]
+]])
 function MMCompat.doShowme(m)
     -- we're given a table of matches, because of the conditional regex matches[2] will be an empty
     -- string if no {}'s are used
@@ -461,14 +468,14 @@ function MMCompat.doShowme(m)
     echo("")
 end
 
---[[
+MMCompat.add_help('listadd', [[
 Format: /listadd {list name} {group name}
 
 Creates a new user defined list.
 
    * {list name} Name of the list you want to create.
    * {group name} Optional, see the user guide for help on groups.
-]]
+]])
 function MMCompat.listAdd(name, group)
     MMGlobals[name] = MMGlobals[name] or {}
 
@@ -479,7 +486,7 @@ function MMCompat.listAdd(name, group)
 end
 
 
---[[
+MMCompat.add_help('listcopy', [[
 Format: /listcopy {old list} {new list} {a or d}
 
 Copies an entire list into a new list. If you don't provide NewList it uses the
@@ -499,7 +506,7 @@ This will duplicate the list called KhraitShips into a list called KhraitShipsCo
 /listcopy {KhraitShips} {OldKhraitShips} {a}
 This will duplicate the list called KhraitShips into a list called
 OldKhraitShips and sort the new list in ascending order.
-]]
+]])
 function MMCompat.listCopy(from, to)
     MMGlobals[from] = MMGlobals[from] or {}
 
@@ -513,7 +520,7 @@ function MMCompat.listCopy(from, to)
     end
 end
 
---[[
+MMCompat.help.clearlist = [[
 Format: /clearlist {list}
 Format: /clearlist {reference number}
 
@@ -527,7 +534,7 @@ function MMCompat.clearList(list)
 end
 
 
---[[
+MMCompat.add_help('listdelete', [[
 Format: /listdelete {list name}
 Format: /listdelete {list number}
 
@@ -535,7 +542,7 @@ Deletes a user defined list and any items in the list.
 
     * {list name} The name of the list you want to delete.
     * {list number} The number of the list you want to delete.
-]]
+]])
 function MMCompat.listDelete(name)
     table.remove(MMGlobals[name])
 
@@ -549,7 +556,7 @@ local is_int = function(n)
     return (type(n) == "number") and (math.floor(n) == n)
 end
 
---[[
+MMCompat.add_help('itemadd', [[
 Format: /itemadd {list name} {item text}
 Format: /itemadd {list number} {item text}
 
@@ -558,7 +565,7 @@ Adds a text string to a user defined list. Lists are sorted by order input.
     * {list name} The name of the list to add the item to.
     * {list number} The number of the list to add the item to.
     * {item text} The text to add to the list.
-]]
+]])
 function MMCompat.itemAdd(m)
     local name = m[2]
     local val = (m[3] ~= "") and m[3] or m[4]
@@ -568,7 +575,7 @@ function MMCompat.itemAdd(m)
 end
 
 
---[[
+MMCompat.add_help('itemdelete', [[
 Format: /itemdelete {list name} {item text}
 Format: /itemdelete {list name} {item number}
 Format: /itemdelete {list number} {item text}
@@ -580,7 +587,7 @@ Deletes an item from a user defined list.
     * {list number} The number of the list to delete the item from.
     * {item text} The text of the item to delete.
     * {item number} The number of the item to delete.
-]]
+]])
 function MMCompat.itemDelete(name, textOrId)
     MMGlobals[name] = MMGlobals[name] or {}
 
@@ -591,47 +598,37 @@ function MMCompat.itemDelete(name, textOrId)
     end
 end
 
-function MMCompat.makeAction(m)
+MMCompat.add_help('action', [[
+Format: /action {text pattern} {commands} {group name}
 
-    local ptrn = (m[2] ~= "") and m[2] or m[3]
-    local cmds = m[4]
-    local group = m[5] or nil
+Action tells the client to look for a specific string of text from the mud and
+to execute a command or multiple commands when it finds it. Typing /action by
+itself will list all of the actions you have defined.
 
-    local pattern = MMCompat.parseCaptures(ptrn)
-    local commands = MMCompat.parseCommands(cmds, true, false)
+   * {text pattern} This is the text to look for to trigger the action.
+   * {commands} The commands are the actions you want to take when the action
+     is triggered.
+   * {group name} This is an optional parameter. See the user guide for help on
+     groups.
 
-    if MMCompat.isDebug then
-      local tbl = {
-        tGroup = group,
-        tPattern = ptrn,
-        tParsedPattern = pattern,
-        tCmds = cmds,
-        tItemType = "trigger",
-        tCommands = commands
-      }
+Examples:
 
-      display(tbl)
-    end
+/action {You are hungry.} {take food bag;}
+This is the most basic form of an action. It sees the text "You are hungry."
+and then sends the commands "take food bag" and "eat food" to the mud.
 
-    if exists(ptrn, "trigger") ~= 0 then
-      MMCompat.warning("Action with the name '<green>" .. ptrn .. "<white>' already exists")
-      return
-    end
+/action {^You are hungry.} {take food bag;eat food}
+You can 'anchor' an action by starting it with a caret (^). When an action is
+anchored the text to search for must be at the beginning of the line.
 
-    local treeGroup = MMCompat.createParentGroup(group, "trigger", "MMActions")
-
-    if MMCompat.isDebug then
-      echo("Creating trigger '" .. ptrn .. "'\n")
-
-      echo("commands:\n")
-      display(commands)
-    end
-
-    permRegexTrigger(ptrn, treeGroup, {pattern}, commands)
-  end
-
-
-  function MMCompat.makeAction2(strText)
+/action {%0 looks at you.} {say Hi $0}
+%0-%9 are substitution variables that you can use in the trigger side of an
+action. They work like a wildcard character but store the text the wildcard
+represents for your use. If the mud sent the text "Arithon looks at you." it
+would send the command "say Hi Arithon" back. You can use up to 10 (0-9)of
+these variables to help you match a text pattern.
+]])
+  function MMCompat.makeAction(strText)
 
     local foundPattern = false
     local ptrn = ""
@@ -713,55 +710,34 @@ function MMCompat.makeAction(m)
     end
 end
 
---[[
-function MMCompat.makeAlias(m)
 
-    if MMCompat.isDebug then
-      echo("\nin makeAlias(), matches:\n")
-      display(m)
-    end
+MMCompat.add_help('alias', [[
+Format: /alias {shortcut} {commands} {group name}
 
-    local ptrn = (m[2] ~= "") and m[2] or m[3]
-    local cmds = m[4]
-    local group = m[5] or nil
+An alias lets you define some "shortcut" text to execute a command or commands.
+Your alias list is checked each time you press enter to send some text to the
+mud. If the text you typed is found in your alias list the text from the
+commands side of the alias is sent instead.  An alias is only replaced if it is
+the first text typed on a line.
 
-    if MMCompat.isDebug then
-      MMCompat.debug("makeAlias before parse")
-      display(MMGlobals)
-      echo("\n")
-    end
+   * {alias name} This is the shortcut text you want to be able to type to
+     execute commands.
+   * {commands} The commands to execute when the alias name is typed.
+   * {group name} This is an optional parameter. See the user guide on groups
+     for help.
 
-    local pattern = "^/"..MMCompat.parseCaptures(ptrn)
-    local commands = MMCompat.parseCommands(cmds, true, false)
+Examples:
 
-    if MMCompat.isDebug then
-      local tbl = {
-        tGroup = group,
-        tPattern = ptrn,
-        tParsedPattern = pattern,
-        tCmds = cmds,
-        tItemType = "alias"
-      }
+/alias {eat} {take food bag;gobble food}
+If you typed "eat" on the input line the commands "take food bag" and "gobble
+food" would be sent to the mud instead.
 
-      MMCompat.debug("makeAlias after parse")
-      display(tbl)
-      echo("\n")
-      display(MMGlobals)
-    end
-
-    if exists(ptrn, "alias") ~= 0 then
-      MMCompat.echo("Alias with the name '<green>" .. ptrn .. "<white>' already exists")
-      return
-    end
-
-    -- Create group 'group' under group 'parentGroup', if group exists
-    local treeGroup = MMCompat.createParentGroup(group, "alias", "MMAliases")
-
-    permAlias(ptrn, treeGroup, pattern, commands)
-end
---]]
-
-function MMCompat.makeAlias2(str)
+/alias {targ %0} {/var Target $0}
+You can also use the variable %0 to represent the text typed after the alias
+shortcut. In this case the alias is used to quickly set a targeting variable.
+Typing "targ Vecna" would set a variable called "Target" to "Vecna"
+]])
+function MMCompat.makeAlias(str)
     local strText = str
     local foundPattern = false
     local aliasPattern = ""
@@ -832,35 +808,8 @@ function MMCompat.editAlias(str)
 
 end
 
--- name, frequency, commands, group
-function MMCompat.makeEvent(name, freq, cmds, group)
-    local commands = MMCompat.parseCommands(cmds, false, false)
 
-    local itemType = "timer"
-    local itemParent = "MMEvents"
-
-    if exists(name, itemType) ~= 0 then
-      echo("Event with the name '" .. name .. "' already exists")
-      return
-    end
-
-    MMCompat.createParentGroup(group, itemType, itemParent)
-
-    permTimer(name, group, freq, commands)
-
-    local eventTbl = {
-        name = name,
-        freq = freq,
-        group = group
-    }
-
-    local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
-    if not tblIdx then
-        table.insert(MMCompat.save.events, eventTbl)
-    end
-end
-
---[[
+MMCompat.add_help('event', [[
 Format: /event {name} {frequency} {event actions} {group}
 
 Event causes some actions to be taken when a certain amount of time has passed.
@@ -884,8 +833,8 @@ actions to be taken when the event is fired.
 
 /event {Jumper} {30} {jump}
 This will create an event called Jumper that jumps every 30 seconds.
-]]
-function MMCompat.makeEvent2(str)
+]])
+function MMCompat.makeEvent(str)
     local strText = str
     local foundName = false
     local eventName = ""
@@ -969,33 +918,32 @@ function MMCompat.listEvents()
     end
 end
 
--- name, value, group
---[[
-function MMCompat.makeVariable(m)
+MMCompat.add_help('variable', [[
+Format: /variable {variable name} {value} {group name}
 
-    local name = (m[2] ~= "") and m[2] or m[3]
-    local value = (m[4] ~= "") and m[4] or m[5]
-    local group = (m[6] ~= "") and m[6] or ""
-  
-    if MMCompat.isDebug then
-      display(m)
-      echo(string.format("\nname: %s, value: %s, group: %s\n", name, value, group))
-    end
-  
-    local valueType = type(value)
-  
-    local valueNumeric = tonumber(value)
-    if valueNumeric then
-      MMGlobals[name] = valueNumeric
-    elseif valueType == "string" then
-      MMGlobals[name] = value
-    else
-      MMCompat.warning(string.format("Value type (%s) is not a number or string!", valueType))
-    end
-end
---]]
+The variable command adds a variable to your variable list and assigns it a
+value. If the variable is already in the list the value is replaced with the new
+value. A variable can be recalled by putting a @Var() around it's name, such as
+"@Var(example)". You can also put a $ in front of the variable name to recall
+it, such as "$example".
 
-function MMCompat.makeVariable2(strText)
+   * {variable name} What you want to name the variable.
+   * {value} The value to assign to the variable.
+   * {group name} This is an optional parameter. See the user guide for help on
+     groups.
+
+Example:
+
+/variable {Target} {orc}
+Adds a variable called Target to your list of variables and gives it a value of
+"orc".
+
+There are several variables that are defined by the client. The client will let
+you if you insist, but you should probably not define variables with these
+names. If you do your version of the variable will be found before the system
+variable. For a list of system variables see the User Guide.
+]])
+function MMCompat.makeVariable(strText)
 
     local foundVar = false
     local varName = ""
@@ -1074,6 +1022,17 @@ function MMCompat.makeVariable2(strText)
 
 end
 
+MMCompat.add_help('unvariable', [[
+Format: /unvariable {reference number}
+Format: /unvariable {variable name}
+
+Removes a variable from your list of defined variables. You can either type the
+number of the variable which you see when you list the variables or an exact
+text math of the variable name.
+
+   * {reference number} The number of the variable you want to remove.
+   * {variable name} The name of the variable you want to remove.
+]])
 function MMCompat.doUnVariable(str)
     local foundVar = false
     local varName = ""
@@ -1100,6 +1059,13 @@ function MMCompat.doUnVariable(str)
     table.remove(MMCompat.save.variables, varIdx)
 end
 
+MMCompat.add_help('empty', [[
+Format: /empty {variable name}
+
+Empty creates a variable with an empty string (a string with no data in it).
+
+   * {variable name} The name of the variable to create or set to empty.
+]])
 function MMCompat.doEmpty(str)
     local foundVar = false
     local varName = ""
@@ -1129,6 +1095,16 @@ function MMCompat.doEmpty(str)
     end
 end
 
+
+MMCompat.add_help('editvariable', [[
+Format: /editvariable {variable text or number}
+Format: /editvariable {reference number}
+
+Places the variable in the edit bar.
+
+   * {variable text} The name of the variable you want to edit.
+   * {reference number} The number of the variable you want to edit.
+]])
 function MMCompat.doEditVariable(str)
     local foundVar = false
     local varName = ""
@@ -1154,8 +1130,7 @@ function MMCompat.doEditVariable(str)
     appendCmdLine("/variable {"..varName.."} {"..MMGlobals[varName].."}")
 end
 
---[[
-
+MMCompat.add_help('array', [[
 Format: /array {array name} {rows} {group name}
 Format: /array {array name} {rows,columns} {group name}
 
@@ -1185,8 +1160,8 @@ The /array command now initializes all array elements in the new array to empty.
 When arrays are written to script files elements which are empty are not written
 into the script file.
 
-See /assign for assigning values and @getarray or @arr or @a for retrieving values
-]]
+See <link: assign>assign</link> for assigning values and @getarray or @arr or @a for retrieving values
+]])
 function MMCompat.makeArray(str)
     local strText = str
     local foundName = false
@@ -1246,7 +1221,7 @@ function MMCompat.makeArray(str)
 
 end
 
---[[
+MMCompat.add_help('assign', [[
 Format: /assign {array name} {row} {value}
 Format: /assign {array name} {row,column} {value}
 
@@ -1268,8 +1243,8 @@ This assigns the first cell in the array to hold the text "Soth".
 /assign {Grid} {2,4} {16}
 This assigns row 2, column 4 of the grid with a value of 16.
 
-See /array for defining arrays
-]]
+See <link: array>array</link> for defining arrays
+]])
 function MMCompat.doAssign(str)
     local strText = str
     local foundName = false
