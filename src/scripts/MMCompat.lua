@@ -66,6 +66,7 @@ MMCompat.help = {[[
 ]]
 }
 
+--[[
 local runQueue
 function runQueue(fnc,tbl)
     local info = table.remove(tbl,1)
@@ -104,7 +105,7 @@ end
 function expandQueue(...)
     doQueue(expandAlias,...)
 end
-
+]]
 
 function MMCompat.debug(msg)
   if MMCompat.isDebug then
@@ -122,12 +123,28 @@ function MMCompat.error(msg)
   cecho(string.format("\n<white>[<indian_red>MMCompat <red>Error<white>] %s", msg))
 end
 
-function MMCompat.add_help(cmd, entry)
+
+local function add_help(cmd, entry)
   MMCompat.helpEntries = MMCompat.helpEntries + 1
   MMCompat.help[cmd] = entry
   MMCompat.helpCmds = MMCompat.helpCmds or {}
   table.insert(MMCompat.helpCmds, cmd)
 end
+
+
+function MMCompat.add_command(cmd, cmdTbl)
+  --cmdTable has help, pattern, func
+  local funcTbl = {
+    name = cmd,
+    pattern = cmdTbl.pattern,
+    cmd = cmdTbl.func
+  }
+
+  table.insert(MMCompat.functions, funcTbl)
+
+  add_help(cmd, cmdTbl.help)
+end
+
 
 --[[
 Help funcion, adapted from generic_mapper
@@ -280,11 +297,111 @@ function MMCompat.parseCaptures(pattern)
   return result
 end
 
+function MMCompat.findStatement(strText)
+  local ptrInc = 1
+  local strResult = ""
+  local buffer = {}
+
+  -- Trim leading spaces and tabs
+  while ptrInc <= #strText and (strText:sub(ptrInc, ptrInc) == ' ' or strText:sub(ptrInc, ptrInc) == '\t') do
+      ptrInc = ptrInc + 1
+  end
+
+  if ptrInc > #strText then
+      return true, "" -- Nothing to process
+  end
+
+  -- Define characters used for block start, end, escape, and procedure
+  local chStartChar = '{'
+  local chEndChar = '}'
+  local chEscape = '\\'
+  local procChar = '@'
+
+  -- Determine if block delimiters are spaces
+  local nBlockCount = 0
+  if strText:sub(ptrInc, ptrInc) ~= chStartChar then
+      chEndChar = ' '
+      chStartChar = ' '
+      nBlockCount = 1 -- Start with a block already active
+  end
+
+  local nProcCount = 0
+  local nPotentialProcCount = 0
+  local ch1 = ""
+
+  while ptrInc <= #strText do
+      local ch = strText:sub(ptrInc, ptrInc)
+      ch1 = strText:sub(ptrInc + 1, ptrInc + 1)
+
+      -- Handle escape sequences for procedure characters
+      if ch == chEscape and ch1 == procChar then
+          table.insert(buffer, chEscape)
+          table.insert(buffer, procChar)
+          ptrInc = ptrInc + 2
+      elseif ch == procChar then
+          -- Handle procedures
+          nPotentialProcCount = nPotentialProcCount + 1
+          table.insert(buffer, ch)
+          ptrInc = ptrInc + 1
+      elseif ch == '(' and nPotentialProcCount > 0 then
+          -- Handle procedure parentheses
+          nProcCount = nProcCount + 1
+          nPotentialProcCount = nPotentialProcCount - 1
+          table.insert(buffer, ch)
+          ptrInc = ptrInc + 1
+      elseif ch == chEscape and ch1 == ')' then
+          -- Escape sequences for closing parentheses
+          table.insert(buffer, chEscape)
+          table.insert(buffer, ')')
+          ptrInc = ptrInc + 2
+      elseif ch == ')' and nProcCount > 0 then
+          -- Decrement procedure count for closing parentheses
+          nProcCount = nProcCount - 1
+          table.insert(buffer, ch)
+          ptrInc = ptrInc + 1
+      elseif ch == chEndChar and nProcCount == 0 then
+          -- Handle block ending character
+          nBlockCount = nBlockCount - 1
+          if nBlockCount == 0 then
+              ptrInc = ptrInc + 1 -- Move past the closing delimiter
+              break
+          else
+              table.insert(buffer, ch)
+              ptrInc = ptrInc + 1
+          end
+      elseif ch == chStartChar and nBlockCount == 0 then
+          -- Handle block starting character
+          nBlockCount = nBlockCount + 1
+          ptrInc = ptrInc + 1
+      elseif ch == chStartChar and nProcCount == 0 then
+          -- Nested blocks
+          nBlockCount = nBlockCount + 1
+          table.insert(buffer, ch)
+          ptrInc = ptrInc + 1
+      else
+          -- Add the character to the buffer
+          table.insert(buffer, ch)
+          ptrInc = ptrInc + 1
+      end
+  end
+
+  -- Handle mismatched parentheses
+  if nProcCount > 0 then
+      MMCompat.debug(string.format("Mismatched parens processing text:\nThis Line-->[%s]\n", strText))
+  end
+
+  -- Process the remaining text
+  local remainingText = strText:sub(ptrInc)
+  strResult = table.concat(buffer)
+
+  return true, strResult, remainingText
+end
+
 
 --[[
   Ported code from MudMaster2k source
 ]]
-function MMCompat.findStatement(strText)
+function MMCompat.findStatement2(strText)
   local strResult = ""
   local ptrInc = 1
 
@@ -388,6 +505,12 @@ function MMCompat.findStatement(strText)
   end
 
   strResult = table.concat(buffer)
+
+  MMCompat.debug("findStatement: output:: ")
+  display(buffer)
+  MMCompat.debug("strResult = '"..strResult.."'")
+  MMCompat.debug("strText = '"..strText.."'")
+
   return true, strResult, strText
 end
 
@@ -492,8 +615,53 @@ function MMCompat.templateAssignGlobalMatches()
   end
 end
 
-
 function MMCompat.parseCommands(cmds, includeMatchExpansion, reference)
+  -- Split commands by semicolon
+  cmds = string.split(cmds, "%s*;%s*")
+
+  if MMCompat.isDebug then
+      display(cmds)
+  end
+
+  local expandedStr = ""
+  local anyMatchReplacements = false
+
+  -- Loop over all commands
+  for k, v in ipairs(cmds) do
+      MMCompat.debug(string.format('Processing command %s', v))
+
+      local cmd = ""
+
+      -- Check if the command is a 'wait' command
+      --if string.match(v, "wait [%d%.]+") then
+      --    cmd = string.match(v, "^wait ([%d%.]+)$")
+      --else
+          cmd = v
+      --end
+
+      -- Replace variables in the command
+      local expandedCmd = ""
+      if not reference then
+          expandedCmd, anyMatchReplacements = MMCompat.replaceVariables(cmd, true)
+      else
+          expandedCmd, anyMatchReplacements = MMCompat.referenceVariables(cmd, MMGlobals)
+      end
+
+      -- Call expandAlias for each expanded command
+      expandedStr = expandedStr .. "expandAlias(\""..expandedCmd.."\")\n"
+  end
+
+  -- Add code that puts all matches into MMGlobals, if necessary
+  local matchStr = ""
+  if anyMatchReplacements and includeMatchExpansion then
+      matchStr = [[MMCompat.templateAssignGlobalMatches()]]
+      matchStr = matchStr .. "\n"
+  end
+
+  return matchStr .. expandedStr
+end
+
+function MMCompat.parseCommands2(cmds, includeMatchExpansion, reference)
   -- split commands by semicolon
   cmds = string.split(cmds,"%s*;%s*")
 
@@ -740,42 +908,8 @@ function MMCompat.config()
     end
 
     MMCompat.scriptAliases = {}
-
-    -- pattern that matches 2 or 3 groups of {}'s, 3rd being optional
-    -- with the 2nd possibly containing a nested command also with {}'s
-    local nested3MatchPattern = [[(?:{(.+?)}|(\w+))\s+(?:{(.+?)}|(.+?))\s*(?:{((?:[^{}]|\{[^{}]*\})*)})?$]]
-
-    MMCompat.functions = {
-      {name="action",       pattern=[[^/action (.*)$]],                                           cmd=[[MMCompat.makeAction(matches[2])]]},
-      {name="alias",        pattern=[[^/alias (.*)$]],                                            cmd=[[MMCompat.makeAlias(matches[2])]]},
-      {name="array",        pattern=[[^/array (.*)$]],                                            cmd=[[MMCompat.makeArray(matches[2])]]},
-      {name="assign",       pattern=[[^/assign (.*)$]],                                           cmd=[[MMCompat.doAssign(matches[2])]]},
-      {name="editvariable", pattern=[[^/editvariable (.*)$]],                                     cmd=[[MMCompat.doEditVariable(matches[2])]]},
-      {name="empty",        pattern=[[^/empty (.*)$]],                                            cmd=[[MMCompat.doEmpty(matches[2])]]},
-      {name="event",        pattern=[[^/event\s*(.*)?$]],                                         cmd=[[MMCompat.makeEvent(matches[2])]]},
-      {name="if",           pattern=[[^/if (.*)$]],                                               cmd=[[MMCompat.doIf(matches[2])]]},
-      {name="itemadd",      pattern=[[^/itema(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],    cmd=[[MMCompat.itemAdd(matches)]]},
-      {name="listadd",      pattern=[[^/lista(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],    cmd=[[MMCompat.listAdd(matches[2], matches[3])]]},
-      {name="itemdelete",   pattern=[[^/itemd(?:elete)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]], cmd=[[MMCompat.itemDelete(matches[2], matches[3])]]},
-      {name="listcopy",     pattern=[[^/listc(?:opy)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],   cmd=[[MMCompat.listCopy(matches[2], matches[3])]]},
-      {name="listdelete",   pattern=[[^/listd(?:elete)? (?:{(\w+)}|(\w+))$]],                     cmd=[[MMCompat.listDelete(matches[2])]]},
-      {name="clearlist",    pattern=[[^/clearlist (.*)$]],                                        cmd=[[MMCompat.clearList(matches[2])]]},
-      {name="loop",         pattern=[[^/loop (.*)$]],                                             cmd=[[MMCompat.doLoop(matches[2])]]},
-      {name="showme",       pattern=[[^/showme (?:{(.+?)}|(.+?))$]],                              cmd=[[MMCompat.doShowme(matches)]]},
-      {name="variable",     pattern=[[^/var(?:iable)? (.*)$]],                                    cmd=[[MMCompat.makeVariable(matches[2])]]},
-      {name="while",        pattern=[[^/while (.*)$]],                                            cmd=[[MMCompat.doWhile(matches[2])]]},
-      {name="call",         pattern=[[^/call (.*)$]],                                             cmd=[[MMCompat.doChatCall(matches[2])]]},
-      {name="chat",         pattern=[[^/chat\s*(.*)$]],                                           cmd=[[MMCompat.doChat(matches[2])]]},
-      {name="chatall",      pattern=[[^/chata(?:ll)? (.*)$]],                                     cmd=[[MMCompat.doChatAll(matches[2])]]},
-      {name="chatname",     pattern=[[^/chatn(?:ame)? (.*)$]],                                    cmd=[[MMCompat.doChatName(matches[2])]]},
-      {name="emoteall",     pattern=[[^/emotea(?:ll)? (.*)$]],                                    cmd=[[MMCompat.doEmoteAll(matches[2])]]},
-      {name="unchat",       pattern=[[^/unchat (.*)$]],                                           cmd=[[MMCompat.doUnChat(matches[2])]]},
-      {name="unvariable",   pattern=[[^/unvar(?:iable)? (.*)$]],                                  cmd=[[MMCompat.doUnVariable(matches[2])]]},
-      {name="zap",          pattern=[[^/zap$]],                                                   cmd=[[disconnect()]]},
-      --{name="", pattern=[[]], cmd=[[]]},
-      --{name="", pattern=[[]], cmd=[[]]},
-      --{name="", pattern=[[]], cmd=[[]]},
-    }
+    MMCompat.functions = {}
+    
 
     --      {name="event",        pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]],      cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
 
@@ -875,15 +1009,16 @@ function MMCompat.config()
 
     tempTimer(.25, [[MMCompat.display_info()]])
 
-    for _,v in pairs(MMCompat.functions) do
-      local aliasId = tempAlias(v.pattern, v.cmd)
-    --  cecho(string.format("\n<white>[<indian_red>MMCompat<white>] Loaded <LawnGreen>%s <white>command, id: <green>%d", v.name, aliasId))
-      table.insert(MMCompat.scriptAliases, aliasId)
-    end
-
 end
 
 function MMCompat.display_info()
+  -- yea this probably doesnt belong here, move later
+  for _,v in pairs(MMCompat.functions) do
+    local aliasId = tempAlias(v.pattern, v.cmd)
+  --  cecho(string.format("\n<white>[<indian_red>MMCompat<white>] Loaded <LawnGreen>%s <white>command, id: <green>%d", v.name, aliasId))
+    table.insert(MMCompat.scriptAliases, aliasId)
+  end
+
   MMCompat.echo(string.format("MudMaster Compatibility v <yellow>%s <white>loaded...", MMCompat.version))
   MMCompat.echo(string.format("    <green>%d <white>commands, <green>%d <white>procedures, <green>%d <white>help entries",
     #MMCompat.functions, #MMCompat.procedures, MMCompat.helpEntries))
