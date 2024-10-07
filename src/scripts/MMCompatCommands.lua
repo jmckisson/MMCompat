@@ -388,8 +388,8 @@ function MMCompat.doLoop(strText)
     local function split_string(input)
         local result = {}
         for value in string.gmatch(input, '([^,]+)') do
-        local trimmed_value = tonumber(value:match("^%s*(.-)%s*$"))
-        table.insert(result, trimmed_value)
+            local trimmed_value = tonumber(value:match("^%s*(.-)%s*$"))
+            table.insert(result, trimmed_value)
         end
         return result
     end
@@ -534,6 +534,7 @@ function MMCompat.doListAdd(name, group)
     local tblIdx = MMCompat.index_of(MMCompat.save.lists, name)
     if not tblIdx then
         table.insert(MMCompat.save.lists, name)
+        MMCompat.saveData()
     end
 end
 
@@ -573,6 +574,7 @@ function MMCompat.doListCopy(from, to)
     local tblIdx = MMCompat.index_of(MMCompat.save.lists, toName)
     if not tblIdx then
         table.insert(MMCompat.save.lists, toName)
+        MMCompat.saveData()
     end
 end
 
@@ -707,7 +709,7 @@ these variables to help you match a text pattern.
     pattern = [[^/action (.*)$]],
     func = [[MMCompat.makeAction(matches[2])]]
 })
-  function MMCompat.makeAction(strText)
+function MMCompat.makeAction(strText)
 
     local foundPattern = false
     local ptrn = ""
@@ -759,17 +761,19 @@ these variables to help you match a text pattern.
       display(tbl)
     end
 
-    if exists(ptrn, "trigger") ~= 0 then
-      MMCompat.warning("Action with the name '<green>" .. ptrn .. "<white>' already exists")
-      return
-    end
+    --if exists(ptrn, "trigger") ~= 0 then
+    --  MMCompat.warning("Action with the name '<green>" .. ptrn .. "<white>' already exists")
+    --  return
+    --end
+
+    MMCompat.initTopLevelGroup("MMActions", "trigger")
 
     local treeGroup = MMCompat.createParentGroup(group, "trigger", "MMActions")
 
     MMCompat.debug("Creating trigger '" .. ptrn .. "'")
 
     if MMCompat.isDebug then
-      echo("commands:\n")
+      MMCompat.debug("commands:")
       display(commands)
     end
 
@@ -786,7 +790,290 @@ these variables to help you match a text pattern.
     local tblIdx = table.index_of(MMCompat.save.actions, actionTbl)
     if not tblIdx then
         table.insert(MMCompat.save.actions, actionTbl)
+        MMCompat.saveData()
     end
+
+end
+
+
+MMCompat.add_command('substitute', {
+    help = [[
+Format: /substitute {text pattern} {replacement text} {group name}
+
+A substitute looks for text patterns in the same way that an action does. When
+it finds a match it substitutes the text in the pattern with the replacement
+text. 
+
+If you use one or more pattern wildcards like %0 you can then use the matching
+system variables like $0 as well as other variables in the replacement string
+
+   * {text pattern} The text to substitute.
+   * {replacement text} The text to display.
+   * {group name} This is an optional parameter. See the user guide for help on
+     groups.    
+]],
+    pattern = [[^/sub(?:stitute)? (.*)$]],
+    func = [[MMCompat.makeSubstitute(matches[2])]]
+})
+function MMCompat.makeSubstitute(str)
+    local strText = str
+    local foundPattern = false
+    local ptrn = ""
+
+    foundPattern, ptrn, strText = MMCompat.findStatement(strText)
+
+    if not foundPattern then
+      MMCompat.error("Error parsing substitute pattern from '"..strText.."'")
+      return
+    end
+
+    local foundReplacement = false
+    local strReplace = ""
+
+    foundReplacement, strReplace, strText = MMCompat.findStatement(strText)
+
+    if not foundReplacement then
+        MMCompat.error("Error parsing substitute replacement from '"..str.."'")
+        return
+    end
+
+    local foundGroup = false
+    local subGroup = ""
+
+    foundGroup, subGroup, strText = MMCompat.findStatement(strText)
+
+    local pattern = MMCompat.parseCaptures(ptrn)
+
+    MMCompat.debug("Creating substitution '" .. ptrn .. "'")
+
+    MMCompat.initTopLevelGroup("MMSubstitutions", "trigger")
+
+    local treeGroup = MMCompat.createParentGroup(subGroup, "trigger", "MMSubstitutions")
+
+    local commands = string.format("selectString(matches[1], 1) replace(\"%s\", true)",
+                                strReplace)
+
+    local trigId = permRegexTrigger(ptrn, treeGroup, {pattern}, commands)
+
+    local subTbl = {
+        pattern = ptrn,
+        group = treeGroup
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.subs, subTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.subs, subTbl)
+        MMCompat.saveData()
+    end
+end
+
+
+MMCompat.add_command('gag', {
+    help = [[
+Format: /gag {mask}
+
+Adds a gag to the gag list. Before the client prints a line of text to the
+screen it checks the gag list. If {mask} is found in a line of text that line
+will not be printed.
+
+   * {mask} This is the text pattern to search for to determine what lines of
+     text to gag. The mask can be defined the same way you define the text
+     pattern for an action-- using %0 through %9.
+
+/gag {Geoff says}
+Any lines that have the text "Geoff says" in them will not be seen.
+
+/gag {You hear %0 shout}
+]],
+    pattern = [[^/gag (.*)$]],
+    func = [[MMCompat.makeGag(matches[2])]]
+})
+function MMCompat.makeGag(str)
+    local strText = str
+    local foundPattern = false
+    local ptrn = ""
+
+    foundPattern, ptrn, strText = MMCompat.findStatement(strText)
+
+    if not foundPattern then
+      MMCompat.error("Error parsing gag pattern from '"..strText.."'")
+      return
+    end
+
+    local pattern = MMCompat.parseCaptures(ptrn)
+
+    MMCompat.debug("Creating gag '" .. ptrn .. "'")
+
+    MMCompat.initTopLevelGroup("MMGags", "trigger")
+
+    local trigId = permRegexTrigger(ptrn, "MMGags", {pattern}, [[deleteLine()]])
+
+    local gagTbl = {
+        pattern = ptrn,
+        group = "MMGags"
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.gags, gagTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.gags, gagTbl)
+        MMCompat.saveData()
+    end
+end
+
+
+local function rgbToHex(r,g,b)
+    local rgb = (r * 0x10000) + (g * 0x100) + b
+    return string.format("#%x", rgb)
+end
+
+
+MMCompat.add_command('highlight', {
+    help = [[
+Format: /highlight {mask} {foreground color, background color}
+
+Adds a highlight to the highlight list. Before the client prints a line of
+text to the screen it checks the highlight list. If {mask} is found in a
+line of text the colors for that word or words are changed to colors that
+you specify.
+
+   * {mask} This is the text pattern to search for to determine what lines of
+     text to highlight. The mask can be defined the same way you define the
+     text pattern for an action -- using %0 through %9. If the mask does not
+     contain any wildcards (%0 - %9) then just the word is highlighted. If the
+     mask uses a wildcard, the whole line is changed to the color.
+   * {color,color} The foreground and background color to change the text to.
+     Valid color names are in the table below. If you don't specify a
+     background color "back black" will be used.
+
+Color Names
+
+   Foreground Colors:
+     black, blue, green, cyan, red, magenta, brown, light
+     grey, dark grey, light blue, light green, light cyan, light
+     red, light magenta, yellow, white
+
+   Background Colors:
+     back black, back blue, back green, back cyan, back
+     red, back magenta, back brown, back light grey
+
+/highlight {disarms you} {yellow}
+Any time you see the text "disarms you" it will appear in yellow.
+
+/highlight {You hear %0 shout} {white,back blue}
+Since a wildcard was used in the mask, when the text is found the entire line
+will be changed to white on blue.
+]],
+    pattern = [[^/high(?:light)? (.*)$]],
+    func = [[MMCompat.makeHighlight(matches[2])]]
+})
+function MMCompat.makeHighlight(str)
+    local strText = str
+    local foundPattern = false
+    local ptrn = ""
+
+    foundPattern, ptrn, strText = MMCompat.findStatement(strText)
+
+    if not foundPattern then
+      MMCompat.error("Error parsing highlight pattern from '"..strText.."'")
+      return
+    end
+
+    local foundColors = false
+    local colors = ""
+
+    foundColors, colors, strText = MMCompat.findStatement(strText)
+
+    if not foundColors then
+        MMCompat.error("Error parsing highlight colors from '"..str.."'")
+        return
+    end
+
+    local fgColor = nil
+    local bgColor = nil
+
+    MMCompat.debug("colors:" ..colors)
+
+    local fg, bg = colors:match("([a-zA-Z]*)%s*,?%s*([a-zA-Z ]*)%s*")
+
+    -- Check if fgColor was captured
+    if fg and fg ~= "" then
+        fgColor = fg
+    end
+
+    -- Check if bgColor was captured and not empty
+    if bg and bg ~= "" then
+        bgColor = bg
+    end
+
+    -- Replace spaces with underscores in fgColor and bgColor
+    if fgColor then
+        fgColor = string.gsub(fgColor, "%s", "_")
+    end
+
+    if bgColor then
+        -- Remove 'back' and the space, then replace remaining spaces with underscores
+        bgColor = string.gsub(bgColor, "^back%s+", "")  -- Remove 'back' and the space
+        bgColor = string.gsub(bgColor, "%s", "_")  -- Replace remaining spaces with underscores
+    else
+        bgColor = ""
+    end
+
+    MMCompat.debug("fgColor: " .. fgColor ..", bgColor: " .. bgColor)
+
+    local pattern, anyCaptures = MMCompat.parseCaptures(ptrn)
+
+    MMCompat.debug("Creating highlight '" .. ptrn .. "'")
+
+    MMCompat.initTopLevelGroup("MMHighlights", "trigger")
+
+    local commands = ""
+    if anyCaptures then
+        commands = "selectString(line, 1)"
+    else
+        commands = "selectString(\""..ptrn.."\", 1)"
+    end
+
+    -- color_table has name to RGB values
+    local fgRGB = MMCompat.convertColorToRGB(fgColor, 'black')
+    local bgRGB = MMCompat.convertColorToRGB(bgColor, 'black')
+
+    commands = commands .. string.format(" setFgColor(%d,%d,%d)",
+                            fgRGB[1], fgRGB[2], fgRGB[3])
+
+    if bgColor ~= "" then
+        commands = commands .. string.format(" setBgColor(%d,%d,%d)",
+                                bgRGB[1], bgRGB[2], bgRGB[3])
+    end
+
+    commands = commands .. " resetFormat()"
+
+    -- Create a trigger to highlight the word "pixie" for us
+    --permSubstringTrigger("Highlight stuff", "General", {"pixie"},
+    --[[selectString(line, 1) bg("yellow") resetFormat()]]
+    --)
+
+    -- Or another trigger to highlight several different things
+    --permSubstringTrigger("Highlight stuff", "General", {"pixie", "cat", "dog", "rabbit"},
+    --[[selectString(line, 1) fg ("blue") bg("yellow") resetFormat()]]
+    --)
+
+    if anyCaptures then
+        permRegexTrigger(ptrn, "MMHighlights", {pattern}, commands)
+    else
+        permSubstringTrigger(ptrn, "MMHighlights", {pattern}, commands)
+    end
+
+    local highlightTbl = {
+        pattern = ptrn,
+        group = "MMHighlights"
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.highlights, highlightTbl)
+    if not tblIdx then
+        table.insert(MMCompat.save.highlights, highlightTbl)
+        MMCompat.saveData()
+    end
+
 end
 
 
@@ -870,6 +1157,8 @@ function MMCompat.makeAlias(str)
       return
     end
 
+    MMCompat.initTopLevelGroup("MMAliases", "alias")
+
     -- Create group 'group' under group 'parentGroup', if group exists
     local treeGroup = MMCompat.createParentGroup(aliasGroup, "alias", "MMAliases")
 
@@ -886,6 +1175,7 @@ function MMCompat.makeAlias(str)
     local tblIdx = table.index_of(MMCompat.save.aliases, aliasTbl)
     if not tblIdx then
         table.insert(MMCompat.save.aliases, aliasTbl)
+        MMCompat.saveData()
     end
 end
 
@@ -971,6 +1261,8 @@ function MMCompat.makeEvent(str)
       return
     end
 
+    MMCompat.initTopLevelGroup("MMEvents", "timer")
+
     local treeGroup = MMCompat.createParentGroup(eventGroup, itemType, itemParent)
 
     permTimer(eventName, treeGroup, eventFreq, commands)
@@ -987,6 +1279,7 @@ function MMCompat.makeEvent(str)
     local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
     if not tblIdx then
         table.insert(MMCompat.save.events, eventTbl)
+        MMCompat.saveData()
     end
 end
 
@@ -1109,6 +1402,7 @@ function MMCompat.makeVariable(strText)
     local varIdx = table.index_of(MMCompat.save.variables, varName)
     if not varIdx then
         table.insert(MMCompat.save.variables, varName)
+        MMCompat.saveData()
     end
 end
 
@@ -1151,7 +1445,10 @@ function MMCompat.doUnVariable(str)
 
     MMGlobals[varName] = nil
     local varIdx = table.index_of(MMCompat.save.variables, varName)
-    table.remove(MMCompat.save.variables, varIdx)
+    if varIdx then
+        table.remove(MMCompat.save.variables, varIdx)
+        MMCompat.saveData()
+    end
 end
 
 
@@ -1192,6 +1489,7 @@ function MMCompat.doEmpty(str)
     local varIdx = table.index_of(MMCompat.save.variables, varName)
     if not varIdx then
         table.insert(MMCompat.save.variables, varName)
+        MMCompat.saveData()
     end
 end
 
@@ -1325,6 +1623,7 @@ function MMCompat.makeArray(str)
     local tblIdx = table.index_of(MMCompat.save.arrays, arrayTbl)
     if not tblIdx then
         table.insert(MMCompat.save.arrays, arrayTbl)
+        MMCompat.saveData()
     end
 
 end
@@ -1478,6 +1777,8 @@ function MMCompat.doRead(str)
         return
     end
 
+    MMCompat.isLoading = true
+
     -- Read file line by line
     for line in file:lines() do
         expandAlias(line)
@@ -1485,6 +1786,10 @@ function MMCompat.doRead(str)
 
     -- Close the file
     file:close()
+
+    MMCompat.isLoading = false
+
+    MMCompat.saveData()
 end
 
 
@@ -1701,15 +2006,12 @@ function MMCompat.doKillGroup(str)
     MMCompat.doDisableGroup(str)
 end
 
+
 function MMCompat.doEditAlias(str)
 end
 
-function MMCompat.doUnalias(str)
+
+function MMCompat.doUnAlias(str)
 end
 
-function MMCompat.doSubstitute(str)
-end
-
-function MMCompat.doGag(str)
-end
 

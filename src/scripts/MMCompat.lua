@@ -10,6 +10,7 @@
 MMCompat = MMCompat or {
   isInitialized = false,
   isDebug = false,
+  isLoading = false,  -- flag to indicate if a sript is being loaded via /read
   scriptAliases = {},
   maxWhileLoop = 100,
   version = "__VERSION__" or "NotMuddledYet",
@@ -20,8 +21,11 @@ MMCompat = MMCompat or {
     aliases = {},
     arrays = {},
     events = {},
+    gags = {},
+    highlights = {},
     lists = {},
     macros = {},
+    subs = {},
     variables = {},
   }
 }
@@ -121,6 +125,29 @@ end
 
 function MMCompat.error(msg)
   cecho(string.format("\n<white>[<indian_red>MMCompat <red>Error<white>] %s", msg))
+end
+
+
+function MMCompat.warning(msg)
+  cecho(string.format("\n<white>[<indian_red>MMCompat <yellow>Warning<white>] %s", msg))
+end
+
+
+function MMCompat.initTopLevelGroup(group, type)
+  if exists(group, type) == 0 then
+    permGroup(group, type)
+  end
+end
+
+
+-- Function to count the number of elements in a table
+local function getTableLength(tbl)
+  if not tbl then return 0 end
+  local count = 0
+  for _ in pairs(tbl) do
+    count = count + 1
+  end
+  return count
 end
 
 
@@ -238,10 +265,44 @@ function MMCompat.show_help(cmd)
 end
 
 
+function MMCompat.parseCommaValues(str)
+    local val1 = nil
+    local val2 = nil
+
+    for v1, v2 in str:gmatch("(%d+)%s*,?%s*(%d*)") do
+        val1 = tonumber(v1)
+        if v2 ~= "" then
+            val2 = tonumber(v2)
+        end
+        return val1, val2
+    end
+
+    return nil, nil
+end
+
+
+function MMCompat.convertColorToRGB(mm_color, default_color)
+
+  if mm_color and mm_color ~= "" then
+    mm_color = string.gsub(mm_color, "%s", "_")
+  end
+
+  local rgb_color = color_table[mm_color]
+
+  if not rgb_color then
+    MMCompat.warning("Color " .. mm_color .. " not found in Mudlet color table, using '"..default_color.."'")
+    return color_table[default_color]
+  end
+
+  return rgb_color
+end
+
+
 -- Function to replace %1, %2, etc., with named regex captures in the patterns
 -- of triggers and aliases
 function MMCompat.parseCaptures(pattern)
   local result = ""
+  local anyCaptures = false
 
   -- we need to go thru all of this hooplah because gsub will complain if trying to replace %1 with something
   local i = 0
@@ -266,6 +327,7 @@ function MMCompat.parseCaptures(pattern)
         result = result .. "(?<" .. capture_name .. ">.*)"
         MMCompat.debug("captureName: " .. capture_name)
         i = j -- Skip over the % and the digits
+        anyCaptures = true
       else
         -- no digits follow %, just add the % to the result
         result = result .. c
@@ -294,7 +356,7 @@ function MMCompat.parseCaptures(pattern)
     end
   end
 
-  return result
+  return result, anyCaptures
 end
 
 function MMCompat.findStatement(strText)
@@ -970,16 +1032,16 @@ function MMCompat.config()
       {name="Mid",            cmd=function(str, start, n) return string.sub(str, start, start + n - 1) end},
       {name="Minute",         cmd=function() return os.date("%M") end},
       {name="Month",          cmd=function() return os.date("%B") end},
-      {name="NumActions",     cmd=function() return #MMCompat.save.actions end},
-      {name="NumAliases",     cmd=function() return #MMCompat.save.aliases end},
+      {name="NumActions",     cmd=function() return getTableLength(MMCompat.save.actions) end},
+      {name="NumAliases",     cmd=function() return getTableLength(MMCompat.save.aliases) end},
       {name="NumBarItems",    cmd=MMCompat.procNumBarItems},
-      {name="NumEvents",      cmd=function() return #MMCompat.save.events end},
-      {name="NumGags",        cmd=MMCompat.procNumGags},
-      {name="NumHighlights",  cmd=MMCompat.procNumHighLights},
-      {name="NumLists",       cmd=function() return #MMCompat.save.lists end},
+      {name="NumEvents",      cmd=function() return getTableLength(MMCompat.save.events) end},
+      {name="NumGags",        cmd=function() return getTableLength(MMCompat.save.gags) end},
+      {name="NumHighlights",  cmd=function() return getTableLength(MMCompat.save.highlights) end},
+      {name="NumLists",       cmd=function() return getTableLength(MMCompat.save.lists) end},
       {name="NumMacros",      cmd=function() return getProfileStats().keys.active end},
       {name="NumTabList",     cmd=MMCompat.procNumTabList},
-      {name="NumVariables",   cmd=function() return #MMCompat.save.variables end},
+      {name="NumVariables",   cmd=function() return getTableLength(MMCompat.save.variables) end},
       {name="PadLeft",        cmd=function(str, char, n) return string.rep(char, n) .. str end},
       {name="PadRight",       cmd=function(str, char, n) return str .. string.rep(char, n) end},
       {name="PreTrans",       cmd=function(val) return MMCompat.referenceVariables(val) end},
@@ -990,7 +1052,7 @@ function MMCompat.config()
       {name="RTrim",          cmd=function(val) return val:match("^(.-)%s*$") end},
       {name="Second",         cmd=function() return os.date("%S") end},
       {name="SessionName",    cmd=function() return getProfileName() end},
-      {name="SessionPath",    cmd=MMCompat.procGetSessionPath},
+      {name="SessionPath",    cmd=function() return getMudletHomeDir() end},
       {name="StripAnsi",      cmd=MMCompat.procStripAnsi},
       {name="StrStr",         cmd=function(str, search) return string.find(str, search) end},
       {name="StrStrRev",      cmd=MMCompat.procStrStrRev},
@@ -1007,21 +1069,31 @@ function MMCompat.config()
 
     }
 
+    MMCompat.loadData()
+
     tempTimer(.25, [[MMCompat.display_info()]])
 
 end
+
 
 function MMCompat.display_info()
   -- yea this probably doesnt belong here, move later
   for _,v in pairs(MMCompat.functions) do
     local aliasId = tempAlias(v.pattern, v.cmd)
-  --  cecho(string.format("\n<white>[<indian_red>MMCompat<white>] Loaded <LawnGreen>%s <white>command, id: <green>%d", v.name, aliasId))
+    cecho(string.format("\n<white>[<indian_red>MMCompat<white>] Loaded <LawnGreen>%s <white>command, id: <green>%d", v.name, aliasId))
     table.insert(MMCompat.scriptAliases, aliasId)
   end
 
   MMCompat.echo(string.format("MudMaster Compatibility v <yellow>%s <white>loaded...", MMCompat.version))
   MMCompat.echo(string.format("    <green>%d <white>commands, <green>%d <white>procedures, <green>%d <white>help entries",
     #MMCompat.functions, #MMCompat.procedures, MMCompat.helpEntries))
+  MMCompat.echo(string.format("    <yellow>%d <white>actions, <yellow>%d <white>aliases, <yellow>%d <white>events, <yellow>%d <white>arrays, <yellow>%d <white>lists, <yellow>%d variables",
+    getTableLength(MMCompat.save.actions),
+    getTableLength(MMCompat.save.aliases),
+    getTableLength(MMCompat.save.events),
+    getTableLength(MMCompat.save.arrays),
+    getTableLength(MMCompat.save.lists),
+    getTableLength(MMCompat.save.variables)))
   MMCompat.echo("Type /help for the MudMaster help system")
 
   if getCommandSeparator() == ';' then
@@ -1032,6 +1104,10 @@ end
 
 
 function MMCompat.saveData()
+  if MMCompat.isLoading then
+    return
+  end
+
   local charName = string.lower(getProfileName())
   
   local saveTable = table.deepcopy(MMCompat.save)
@@ -1052,14 +1128,17 @@ function MMCompat.loadData()
   MMCompat.save = table.deepcopy(loadTable)
 
   MMCompat.save.actions = MMCompat.save.actions or {}
-  MMCompat.save.aliases = MMCompat.save.actions or {}
+  MMCompat.save.aliases = MMCompat.save.aliases or {}
   MMCompat.save.arrays = MMCompat.save.arrays or {}
-  MMCompat.save.events = MMCompat.save.actions or {}
+  MMCompat.save.events = MMCompat.save.events or {}
   MMCompat.save.lists = MMCompat.save.lists or {}
   MMCompat.save.macros = MMCompat.save.macros or {}
-  MMCompat.save.variabes = MMCompat.save.actions or {}
+  MMCompat.save.gags = MMCompat.save.gags or {}
+  MMCompat.save.highlights = MMCompat.save.highlights or {}
+  MMCompat.save.subs = MMCompat.save.subs or {}
+  MMCompat.save.variabes = MMCompat.save.variables or {}
   
-  MMCompat.cecho("Loaded MudMaster script data for <yellow>" .. charName)
+  MMCompat.echo("Loaded MudMaster script data for <yellow>" .. charName)
 end
 
 
@@ -1074,16 +1153,12 @@ end
 
 MMCompat.helpAliasId = tempAlias([[^/help(?: (.*))?]], [[MMCompat.show_help(matches[2])]])
 
-if exists("MMActions", "trigger") == 0 then
-  permGroup("MMActions", "trigger")
-end
+MMCompat.initTopLevelGroup("MMAliases", "alias")
+MMCompat.initTopLevelGroup("MMEvents", "timer")
+MMCompat.initTopLevelGroup("MMActions", "trigger")
+MMCompat.initTopLevelGroup("MMGags", "trigger")
+MMCompat.initTopLevelGroup("MMHighlights", "trigger")
+MMCompat.initTopLevelGroup("MMSubstitutions", "trigger")
 
-if exists("MMAliases", "alias") == 0 then
-  permGroup("MMAliases", "alias")
-end
-
-if exists("MMEvents", "timer") == 0 then
-  permGroup("MMEvents", "timer")
-end
 
 MMCompat.isInitialized = true
