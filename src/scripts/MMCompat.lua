@@ -2,7 +2,6 @@
 -- 
 -- use %# to indicate an argument that must be provided
 -- use $# to indicate the appropriately numbered argument
--- use wait # to wait that many seconds, including decimal seconds, before continuing to the next command
 
 -- Code inspired from user Jor'Mox on the Mudlet forums
 -- https://forums.mudlet.org/viewtopic.php?t=16462
@@ -12,10 +11,12 @@ MMCompat = MMCompat or {
   isDebug = false,
   isLoading = false,  -- flag to indicate if a sript is being loaded via /read
   scriptAliases = {},
-  maxWhileLoop = 100,
-  version = "__VERSION__" or "NotMuddledYet",
+  maxWhileLoop = 100, -- maximum number of loops allowed in a while statement
+  version = "__VERSION__",
   helpAliasId = nil,
   helpEntries = 1,
+  isLocalEcho = getConfig("showSentText"),
+  wasLocalEcho = getConfig("showSentText"),
   save = {
     actions = {},
     aliases = {},
@@ -27,6 +28,36 @@ MMCompat = MMCompat or {
     macros = {},
     subs = {},
     variables = {},
+  },
+  ansiBold = "\27[1m",
+  ansiReset = "\27[0m",
+  ansiReverse = "\27[7m",
+  backColorTable = {
+    [1] = "\27[44m",
+    [2] = "\27[42m",
+    [3] = "\27[46m",
+    [4] = "\27[41m",
+    [5] = "\27[45m",
+    [6] = "\27[43m",
+    [7] = "\27[7m",
+    [8] = "\27[40m"
+  },
+  foreColorTable = {
+    [1] = "\27[34m",        -- blue
+    [2] = "\27[32m",        -- green
+    [3] = "\27[36m",        -- cyan
+    [4] = "\27[31m",        -- red
+    [5] = "\27[35m",        -- magenta
+    [6] = "\27[33m",        -- yellow
+    [7] = "\27[37m",        -- white
+    [8] = "\27[30m",        -- black
+    [9] = "\27[1m\27[34m",  -- bold blue
+    [10] = "\27[1m\27[32m", -- bold green
+    [11] = "\27[1m\27[36m", -- bold cyan
+    [12] = "\27[1m\27[31m", -- bold red
+    [13] = "\27[1m\27[35m", -- bold magenta
+    [14] = "\27[1m\27[33m", -- bold yellow
+    [15] = "\27[1m\27[37m", -- bold white
   }
 }
 
@@ -43,7 +74,7 @@ MMCompat.help = {[[
   a variable in the global MMGlobal namespace which are used when the $ expansion
   occurs in MudMaster commands.
 
-  ***Important Note***
+  <orange>***Important Note***<reset>
   MudMaster uses a semicolon ; as a command separator, by default Mudlet uses two
   semicolons ;;. MMCompat will not function properly if you have changed your
   Mudlet command separator to a single semicolon!
@@ -59,7 +90,7 @@ MMCompat.help = {[[
     <link: event>event</link>   - Create an Event (Mudlet timer)
 
   All Commands:
-    <show_all>
+    <show_all_cmds>
 
 <cyan>MudMaster Procedures:<reset>
 
@@ -67,49 +98,12 @@ MMCompat.help = {[[
   in-line with Commands. Example: /chatall @AnsiReset()@ForeBlue()hello!
   will chat 'hello!' to all chat connections with the normal blue color.
 
+  All Procedures:
+    <show_all_procs>
+
 ]]
 }
 
---[[
-local runQueue
-function runQueue(fnc,tbl)
-    local info = table.remove(tbl,1)
-    if info then
-        local run = function()
-                fnc(info[2])
-                runQueue(fnc,tbl)
-            end
-        if info[1] ~= 0 then
-            tempTimer(info[1], run)
-        else
-            run()
-        end
-    end
-end
-
-local function doQueue(fnc,...)
-    local tbl = {}
-    local args = arg
-    if type(arg[1]) == "table" then args = arg[1] end
-    for k,v in ipairs(args) do
-        if k % 2 == 1 and type(v) ~= "number" then
-            table.insert(args,k,0)
-        end
-    end
-    for k = 1,#args,2 do
-        tbl[(k + 1) / 2] = {args[k],args[k+1]}
-    end
-    runQueue(fnc,tbl)
-end
-
-function sendQueue(...)
-    doQueue(send,...)
-end
-
-function expandQueue(...)
-    doQueue(expandAlias,...)
-end
-]]
 
 function MMCompat.debug(msg)
   if MMCompat.isDebug then
@@ -151,11 +145,29 @@ local function getTableLength(tbl)
 end
 
 
-local function add_help(cmd, entry)
+function MMCompat.add_help(cmd, entry)
   MMCompat.helpEntries = MMCompat.helpEntries + 1
-  MMCompat.help[cmd] = entry
-  MMCompat.helpCmds = MMCompat.helpCmds or {}
-  table.insert(MMCompat.helpCmds, cmd)
+
+  local function add_help_cmd(cmd_str, cmd_entry)
+    MMCompat.help[cmd_str] = cmd_entry
+
+    if cmd_str:sub(1, 1) == '@' then
+      MMCompat.helpProcs = MMCompat.helpProcs or {}
+      table.insert(MMCompat.helpProcs, cmd_str)
+    else
+      MMCompat.helpCmds = MMCompat.helpCmds or {}
+      table.insert(MMCompat.helpCmds, cmd_str)
+    end
+  end
+
+  if type(cmd) == "table" then
+    for k, v in pairs(cmd) do
+      add_help_cmd(v, entry)
+    end
+  else
+    add_help_cmd(cmd, entry)
+  end
+
 end
 
 
@@ -169,7 +181,7 @@ function MMCompat.add_command(cmd, cmdTbl)
 
   table.insert(MMCompat.functions, funcTbl)
 
-  add_help(cmd, cmdTbl.help)
+  MMCompat.add_help(cmd, cmdTbl.help)
 end
 
 
@@ -177,20 +189,24 @@ end
 Help funcion, adapted from generic_mapper
 ]]
 function MMCompat.show_help(cmd)
+
   if cmd and cmd ~= "" then
-      --if cmd:starts("map ") then cmd = cmd:sub(5) end
-      cmd = cmd:lower():gsub(" ","_")
-      if not MMCompat.help[cmd] then
+      local cmdLower = cmd:lower():gsub(" ","_")
+      if not MMCompat.help[cmd] and not MMCompat.help[cmdLower] then
           MMCompat.echo("No help file on that command.")
+          return
       end
   else
       cmd = 1
   end
 
+  cecho("<yellow>"..cmd.."\n")
+  cecho("<:RoyalBlue>                                                                                <reset>\n")
+
   for w in MMCompat.help[cmd]:gmatch("[^\n]*\n") do
 
     -- Special tag to show all commands with links
-    if w:find("<show_all>") then
+    if w:find("<show_all_cmds>") then
       -- Show all commands from MMCompat.helpCmds
       local sorted_cmds = {}
       for _, help_cmd in pairs(MMCompat.helpCmds) do
@@ -209,7 +225,32 @@ function MMCompat.show_help(cmd)
           setUnderline(false)
           resetFormat()
           lineCount = lineCount + 1
-          if lineCount == 10 then
+          if lineCount == 8 then
+            echo("\n")
+            lineCount = 0
+          end
+      end
+      echo("\n")
+
+    elseif w:find("<show_all_procs>") then
+      -- Show all commands from MMCompat.helpProcs
+      local sorted_procs = {}
+      for _, help_cmd in pairs(MMCompat.helpProcs) do
+          table.insert(sorted_procs, help_cmd)
+      end
+
+      table.sort(sorted_procs)
+
+      local lineCount = 0
+      for _, help_proc in pairs(sorted_procs) do
+          cecho(" ")
+          fg("yellow")
+          setUnderline(true)
+          echoLink(help_proc, [[MMCompat.show_help("]] .. help_proc .. [[")]], "View: " .. help_proc, true)
+          setUnderline(false)
+          resetFormat()
+          lineCount = lineCount + 1
+          if lineCount == 8 then
             echo("\n")
             lineCount = 0
           end
@@ -261,6 +302,26 @@ function MMCompat.show_help(cmd)
           cecho(w)
       end
     end
+  end
+
+  cecho("<:RoyalBlue>                                                                                <reset>\n")
+
+end
+
+
+function MMCompat.restoreLocalEcho()
+  if MMCompat.wasLocalEcho then
+    setConfig("showSentText", true)
+    MMCompat.isLocalEcho = true
+  end
+end
+
+
+function MMCompat.disableLocalEcho()
+  if MMCompat.isLocalEcho or getConfig("showSentText") then
+    MMCompat.wasLocalEcho = true
+    setConfig("showSentText", false)
+    MMCompat.isLocalEcho = false
   end
 end
 
@@ -334,21 +395,6 @@ function MMCompat.parseCaptures(pattern)
         i = i + 1
       end
 
-      --[[
-      -- Check if the next character is a digit
-      local next_char = pattern:sub(i + 1, i + 1)
-      if next_char:match("%d") then
-        -- Create a named capture group using the digit
-        local capture_name = "capture" .. next_char
-        result = result .. "(?<" .. capture_name .. ">.*)"
-        i = i + 2 -- Skip over the % and the digit
-
-      else
-        -- If it's not a digit, just add the % to the result
-        result = result .. c
-        i = i + 1
-      end
-      --]]
     else
       -- Regular character, just add it to the result
       result = result .. c
@@ -359,6 +405,10 @@ function MMCompat.parseCaptures(pattern)
   return result, anyCaptures
 end
 
+
+--[[
+  Ported code from MudMaster2k source
+]]
 function MMCompat.findStatement(strText)
   local ptrInc = 1
   local strResult = ""
@@ -457,123 +507,6 @@ function MMCompat.findStatement(strText)
   strResult = table.concat(buffer)
 
   return true, strResult, remainingText
-end
-
-
---[[
-  Ported code from MudMaster2k source
-]]
-function MMCompat.findStatement2(strText)
-  local strResult = ""
-  local ptrInc = 1
-
-  if MMCompat.isDebug then
-    MMCompat.echo("findStatement: strText =")
-    display(strText)
-    echo("\n")
-  end
-
-  -- Trim leading spaces and tabs
-  while ptrInc <= #strText and (strText:sub(ptrInc, ptrInc) == ' ' or strText:sub(ptrInc, ptrInc) == '\t') do
-      ptrInc = ptrInc + 1
-  end
-
-  if ptrInc > #strText then
-      return true, ""
-  end
-
-  local chEndChar = '}'
-  local chStartChar = '{'
-  local chEscape = '\\'
-
-  local nBlockCount = 0
-  if strText:sub(ptrInc, ptrInc) ~= chStartChar then
-      chEndChar = ' '
-      chStartChar = ' '
-      nBlockCount = 1
-  end
-
-  local nProcCount = 0
-  local nPotentialProcCount = 0
-  local buffer = {}
-
-  local ch1 = ""
-  local procChar = '@'
-
-  while ptrInc <= #strText do
-      local ch = strText:sub(ptrInc, ptrInc)
-      ch1 = strText:sub(ptrInc + 1, ptrInc + 1)
-
-      if ch == chEscape and ch1 == procChar then
-          table.insert(buffer, '\\')
-          table.insert(buffer, procChar)
-          ptrInc = ptrInc + 2
-
-      elseif ch == procChar then
-          -- Need to watch for procedures.  Each time we find a procedure
-          -- we need to look for a matched set of parens.
-          nPotentialProcCount = nPotentialProcCount + 1
-          table.insert(buffer, ch)
-          ptrInc = ptrInc + 1
-
-      elseif ch == '(' and nPotentialProcCount > 0 then
-        -- if we've seen an @ and now a ( it is a procedure
-          nProcCount = nProcCount + 1
-          nPotentialProcCount = nPotentialProcCount - 1
-          table.insert(buffer, ch)
-          ptrInc = ptrInc + 1
-
-      elseif ch == chEscape and ch1 == ')' then
-        -- If the user wants to print a closing paren while inside
-		    -- a procedure definition, they need to use the escape char.
-          table.insert(buffer, '\\')
-          table.insert(buffer, ')')
-          ptrInc = ptrInc + 2
-      else
-          if ch == ')' and nProcCount > 0 then
-              nProcCount = nProcCount - 1
-          end
-
-          if ch == chEndChar and nProcCount == 0 then
-              nBlockCount = nBlockCount - 1
-              if nBlockCount == 0 then
-                  ptrInc = ptrInc + 1
-                  break
-              end
-          end
-
-          if ch == chStartChar and nBlockCount == 0 then
-              nBlockCount = nBlockCount + 1
-              ptrInc = ptrInc + 1
-          elseif ch == chStartChar and nProcCount == 0 then
-              nBlockCount = nBlockCount + 1
-              ptrInc = ptrInc + 1
-          else
-              table.insert(buffer, ch)
-              ptrInc = ptrInc + 1
-          end
-      end
-  end
-
-  if nProcCount > 0 then
-      local strMessage = string.format("Mismatched parens processing text:\nThis Line-->[%s]\n", strText)
-      MMCompat.debug(strMessage)
-  end
-
-  if ch1 ~= "" then
-      strText = strText:sub(ptrInc)
-  else
-      strText = ""
-  end
-
-  strResult = table.concat(buffer)
-
-  MMCompat.debug("findStatement: output:: ")
-  display(buffer)
-  MMCompat.debug("strResult = '"..strResult.."'")
-  MMCompat.debug("strText = '"..strText.."'")
-
-  return true, strResult, strText
 end
 
 
@@ -692,15 +625,8 @@ function MMCompat.parseCommands(cmds, includeMatchExpansion, reference)
   for k, v in ipairs(cmds) do
       MMCompat.debug(string.format('Processing command %s', v))
 
-      local cmd = ""
-
-      -- Check if the command is a 'wait' command
-      --if string.match(v, "wait [%d%.]+") then
-      --    cmd = string.match(v, "^wait ([%d%.]+)$")
-      --else
-          cmd = v
-      --end
-
+      local cmd = v
+  
       -- Replace variables in the command
       local expandedCmd = ""
       if not reference then
@@ -716,72 +642,26 @@ function MMCompat.parseCommands(cmds, includeMatchExpansion, reference)
   -- Add code that puts all matches into MMGlobals, if necessary
   local matchStr = ""
   if anyMatchReplacements and includeMatchExpansion then
-      matchStr = [[MMCompat.templateAssignGlobalMatches()]]
+      matchStr = [[MMCompat.templateAssignGlobalMatches() MMCompat.disableLocalEcho()]]
       matchStr = matchStr .. "\n"
   end
 
-  return matchStr .. expandedStr
+  return matchStr .. expandedStr .. "\nMMCompat.restoreLocalEcho()"
 end
 
-function MMCompat.parseCommands2(cmds, includeMatchExpansion, reference)
-  -- split commands by semicolon
-  cmds = string.split(cmds,"%s*;%s*")
-
-  if MMCompat.isDebug then
-    display(cmds)
-  end
-
-  local str = "expandQueue("
-  local start, match, stop, tmp
-	local comma = ""
-
-  -- loop over all commands
-  for k,v in ipairs(cmds) do
-
-    MMCompat.debug(string.format('Processing command %s', v))
-
-    if string.match(v,"wait [%d%.]+") then
-      str = str .. comma .. string.match(v,"^wait ([%d%.]+)$")
-    else
-      str = str .. comma .. [["]] .. v .. [["]]
-    end
-
-		comma = ","
-  end
-
-  str = str .. ")"
-
-  local expandedStr= ""
-  local anyMatchReplacements = false
-  if not reference then
-    expandedStr, anyMatchReplacements = MMCompat.replaceVariables(str, true)
-  else
-    expandedStr, anyMatchReplacements = MMCompat.referenceVariables(str, MMGlobals)
-  end
-
-  if MMCompat.isDebug then
-    echo("expandedStr: " .. expandedStr .. "\n")
-  end
-
-  -- Add code that puts all matches into MMGlobals
-  -- Only if the resulting code uses the matches table
-  local matchStr = ""
-  if anyMatchReplacements and includeMatchExpansion then
-    matchStr = [[MMCompat.templateAssignGlobalMatches()]]
-    matchStr = matchStr .. "\n"
-  end
-
-  return matchStr .. expandedStr
-end
 
 local function findProcedure(name)
   for _, proc in ipairs(MMCompat.procedures) do
       if proc.name == name then
+          if not proc.cmd then
+            MMCompat.warning("No command defined for procedure '"..proc.name.."'")
+          end
           return proc.cmd
       end
   end
   return nil
 end
+
 
 local function parseArgument(arg)
   -- Try to convert numbers
@@ -800,6 +680,7 @@ local function parseArgument(arg)
   return arg
 end
 
+
 -- Function to evaluate and replace procedure calls
 function MMCompat.replaceProcedureCalls(text)
   -- Pattern to find calls like @ProcedureName(arg1, arg2, ...)
@@ -807,6 +688,9 @@ function MMCompat.replaceProcedureCalls(text)
 
   -- Function to process each match
   local function processProcCall(procedure_name, arguments)
+    MMCompat.debug(string.format("processProcCall: %s args: %s",
+                  procedure_name, arguments))
+
       -- Find the function by procedure name
       local procedure = findProcedure(procedure_name)
       if procedure then
@@ -822,6 +706,7 @@ function MMCompat.replaceProcedureCalls(text)
 
           return tostring(result)
       else
+          MMCompat.debug("procedure not found")
           -- If the procedure is not found, return the original text
           return "@" .. procedure_name .. "(" .. arguments .. ")"
       end
@@ -831,8 +716,8 @@ function MMCompat.replaceProcedureCalls(text)
   return text:gsub(pattern, processProcCall)
 end
 
-function MMCompat.parseCondition(cmds)
 
+function MMCompat.parseCondition(cmds)
   local expandedStr, _ = MMCompat.replaceVariables(cmds, false)
 
   return expandedStr
@@ -858,12 +743,12 @@ function MMCompat.createParentGroup(group, itemType, itemParent)
     -- group is not empty
     if exists(group, itemType) == 0 then
       -- group does not exist, create it under the parent itemParent
-      echo("Creating group " .. itemType .. "/" .. group.."\n")
+      MMCompat.debug("Creating group " .. itemType .. "/" .. group.."\n")
       permGroup(group, itemType, itemParent)
       return group
     else
       -- Group already exists, return the itemParent without creating new group
-      echo("Group " .. itemType .. "/" .. group .." exists\n")
+      MMCompat.debug("Group " .. itemType .. "/" .. group .." exists\n")
       return itemParent
     end
 
@@ -894,28 +779,34 @@ function MMCompat.executeString(cmds)
   return result
 end
 
+
 function MMCompat.findArray(name, row, col)
-  local found = false
+  local arrayTbl = nil
   for k, v in pairs(MMCompat.save.arrays) do
       if v.name == name then
-          found = true
+         
           -- check bounds
           if row > v.bounds.rows then
               MMCompat.error(string.format("Array '%s' row index out of bounds, given %d, bounds %d",
                   v.name, row, v.bounds.row))
-              return
+              return nil
           end
+
           if v.bounds.cols and col and col > v.bounds.cols then
               MMCompat.error(string.format("Array '%s' col index out of bounds, given %d, bounds %d",
                   v.name, col, v.bounds.col))
-              return
+              return nil
           end
+
+          arrayTbl = v
+
           break
       end
   end
 
-  return found
+  return arrayTbl
 end
+
 
 function MMCompat.audit()
   for k, v in pairs(MMCompat.save.actions) do
@@ -971,7 +862,6 @@ function MMCompat.config()
 
     MMCompat.scriptAliases = {}
     MMCompat.functions = {}
-    
 
     --      {name="event",        pattern=[[^/event {(.*?)}\s*{(\d+?)}\s*{(.*?)}\s*(?:{(.*)})?$]],      cmd=[[MMCompat.makeEvent(matches[2], matches[3], matches[4], matches[5])]]},
 
@@ -979,56 +869,59 @@ function MMCompat.config()
 
 
     MMCompat.procedures = {
-      {name="A",              cmd=MMCompat.procGetArray},
+      {name="A",              cmd=function(name, row, col) return MMCompat.procGetArray(name, row, col) end},
       {name="Abs",            cmd=function(val) return math.abs(val) end},
-      {name="AnsiBold",       cmd=function() return "\27[1m" end},
-      {name="AnsiReset",      cmd=function() return "\27[0m" end},
-      {name="AnsiReverse",    cmd=function() return "\27[7m" end},
-      {name="Arr",            cmd=MMCompat.procGetArray},
-      {name="Asc",            cmd=MMCompat.procAsc},
-      {name="BackBlack",      cmd=function(val) return "\27[40m" end},
-      {name="BackBlue",       cmd=function(val) return "\27[44m" end},
-      {name="BackColor",      cmd=MMCompat.procBackColor},
-      {name="BackCyan",       cmd=function() return "\27[46m" end},
-      {name="BackGreen",      cmd=function() return "\27[42m" end},
-      {name="BackMagenta",    cmd=function() return "\27[45m" end},
-      {name="BackRed",        cmd=function() return "\27[41m" end},
-      {name="BackYellow",     cmd=function() return "\27[43m" end},
+      {name="AnsiBold",       cmd=function() return MMCompat.ansiBold end},
+      {name="AnsiReset",      cmd=function() return MMCompat.ansiReset end},
+      {name="AnsiRev",        cmd=function() return MMCompat.ansiReverse end},
+      {name="AnsiReverse",    cmd=function() return MMCompat.ansiReverse end},
+      {name="Arr",            cmd=function(name, row, col) return MMCompat.procGetArray(name, row, col) end},
+      {name="Asc",            cmd=function(chr) return MMCompat.procAsc(chr) end},
+      {name="BackBlack",      cmd=function(val) return MMCompat.backColorTable[8] end},
+      {name="BackBlue",       cmd=function(val) return MMCompat.backColorTable[1] end},
+      {name="BackColor",      cmd=function(num) return MMCompat.procBackColor(num) end},
+      {name="BackCyan",       cmd=function() return MMCompat.backColorTable[3] end},
+      {name="BackGreen",      cmd=function() return MMCompat.backColorTable[2] end},
+      {name="BackMagenta",    cmd=function() return MMCompat.backColorTable[5] end},
+      {name="BackRed",        cmd=function() return MMCompat.backColorTable[4] end},
+      {name="BackYellow",     cmd=function() return MMCompat.backColorTable[6] end},
       {name="Backward",       cmd=function(str) return str:reverse() end},
-      {name="BackWhite",      cmd=function() return "\27[7m" end},
+      {name="BackWhite",      cmd=function() return MMCompat.backColorTable[7] end},
       {name="Chr",            cmd=function(val) return string.char(val) end},
-      {name="Commma",         cmd=MMCompat.procComma},
+      {name="Commma",         cmd=function(str) return MMCompat.procComma(str) end},
       {name="CommandToList",  cmd=MMCompat.procCmdToList},
       {name="ConCat",         cmd=function(a, b) return a..b end},
-      {name="Connected",      cmd=MMCompat.procConnected},
-      {name="Day",            cmd=function() return os.date("%A") end},
-      {name="DeComma",        cmd=MMCompat.procDeComma},
-      {name="EventTime",      cmd=MMCompat.procEventTime},
-      {name="Exists",         cmd=MMCompat.procExists},
-      {name="FileExists",     cmd=MMCompat.procFileExists},
-      {name="ForeBlack",      cmd=function() return "\27[30m" end},
-      {name="ForeBlue",       cmd=function() return "\27[34m" end},
-      {name="ForeColor",      cmd=MMCompat.procForeColor},
-      {name="ForeCyan",       cmd=function() return "\27[36m" end},
-      {name="ForeGreen",      cmd=function() return "\27[32m" end},
-      {name="ForeMagenta",    cmd=function() return "\27[35m" end},
-      {name="ForeRed",        cmd=function() return "\27[31m" end},
-      {name="ForeYellow",     cmd=function() return "\27[33m" end},
-      {name="ForeWhite",      cmd=function() return "\27[37m" end},
-      {name="GetArray",       cmd=MMCompat.procGetArray},
-      {name="GetCount",       cmd=MMCompat.procGetCount},
-      {name="GetItem",        cmd=MMCompat.procGetItem},
+      {name="Connected",      cmd=function() return MMCompat.procConnected() end},
+      {name="Day",            cmd=function() return MMCompat.procDay() end},
+      {name="DeComma",        cmd=function(str) return MMCompat.procDeComma(str) end},
+      {name="EventTime",      cmd=function(name) return MMCompat.procEventTime(name) end},
+      {name="Exists",         cmd=function(name) return MMCompat.procExists(name) end},
+      {name="FileExists",     cmd=function(name) return MMCompat.procFileExists(name) end},
+      {name="ForeBlack",      cmd=function() return MMCompat.foreColorTable[8] end},
+      {name="ForeBlue",       cmd=function() return MMCompat.foreColorTable[1] end},
+      {name="ForeColor",      cmd=function(num) return MMCompat.procForeColor(num) end},
+      {name="ForeCyan",       cmd=function() return MMCompat.foreColorTable[3] end},
+      {name="ForeGreen",      cmd=function() return MMCompat.foreColorTable[2] end},
+      {name="ForeMagenta",    cmd=function() return MMCompat.foreColorTable[5] end},
+      {name="ForeRed",        cmd=function() return MMCompat.foreColorTable[4] end},
+      {name="ForeYellow",     cmd=function() return MMCompat.foreColorTable[6] end},
+      {name="ForeWhite",      cmd=function() return MMCompat.foreColorTable[7] end},
+      {name="GetArray",       cmd=function(name, row, col) return MMCompat.procGetArray(name, row, col) end},
+      {name="GetArrayRows",   cmd=function(name) return MMCompat.procGetArrayRows(name) end},
+      {name="GetArrayCols",   cmd=function(name) return MMCompat.procGetArrayCols(name) end},
+      {name="GetCount",       cmd=function(name) return MMCompat.procGetCount(name) end},
+      {name="GetItem",        cmd=function(name, num) return MMCompat.procGetItem(name, num) end},
       {name="Hour",           cmd=function() return os.date("%H") end},
-      {name="If",             cmd=MMCompat.procIf},
-      {name="InList",         cmd=MMCompat.procInList},
+      {name="If",             cmd=function(cond) return MMCompat.procIf(cond) end},
+      {name="InList",         cmd=function(name, item) return MMCompat.procInList(name, item) end},
       {name="IsNumber",       cmd=function(val) return tonumber(val ~= nil) end},
-      {name="IsEmpty",        cmd=function(list) return table.is_empty(MMGlobals[list]) end},
+      {name="IsEmpty",        cmd=function(var) return MMCompat.procIsEmpty(var) end},
       {name="IP",             cmd=function() return "127.0.0.1" end},
       {name="Left",           cmd=function(val, n) return string.sub(val, 1, n) end},
       {name="Len",            cmd=function(str) return string.len(str) end},
       {name="Lower",          cmd=function(val) return string.lower(val) end},
       {name="LTrim",          cmd=function(val) return val:match("^%s*(.-)$") end},
-      {name="Math",           cmd=MMCompat.procMath},
+      {name="Math",           cmd=function(str) return MMCompat.procMath(str) end},
       {name="Mid",            cmd=function(str, start, n) return string.sub(str, start, start + n - 1) end},
       {name="Minute",         cmd=function() return os.date("%M") end},
       {name="Month",          cmd=function() return os.date("%B") end},
@@ -1047,27 +940,35 @@ function MMCompat.config()
       {name="PreTrans",       cmd=function(val) return MMCompat.referenceVariables(val) end},
       {name="ProcedureCount", cmd=function() return #MMCompat.procedures end},
       {name="Random",         cmd=function(val) return math.random(1, val) end},
-      {name="Replace",        cmd=MMCompat.procReplace},
+      {name="Replace",        cmd=function(str, strF, strR) return MMCompat.procReplace(str, strF, strR) end},
       {name="Right",          cmd=function(val, n) return string.sub(val, -n) end},
       {name="RTrim",          cmd=function(val) return val:match("^(.-)%s*$") end},
       {name="Second",         cmd=function() return os.date("%S") end},
       {name="SessionName",    cmd=function() return getProfileName() end},
       {name="SessionPath",    cmd=function() return getMudletHomeDir() end},
-      {name="StripAnsi",      cmd=MMCompat.procStripAnsi},
-      {name="StrStr",         cmd=function(str, search) return string.find(str, search) end},
-      {name="StrStrRev",      cmd=MMCompat.procStrStrRev},
-      {name="Substr",         cmd=function(val, n, m) return string.sub(val, n-1, m-1) end},
-      {name="Time",           cmd=function() return string.format("%d", os.time()) end},
+      {name="StripAnsi",      cmd=function(str) return MMCompat.procStripAnsi(str) end},
+      {name="StrStr",         cmd=function(str, search) return MMCompat.procStrStr(str, search) end},
+      {name="StrStrRev",      cmd=function(str, search) return MMCompat.procStrStrRev(str, search) end},
+      {name="SubStr",         cmd=function(str, sIdx, eIdx) return MMCompat.procSubStr(str, sIdx, eIdx) end},
+      {name="Time",           cmd=function() return MMCompat.procTime() end},
+      {name="TimeToDay",      cmd=function(t) return MMCompat.procTimeToDay(t) end},
+      {name="TimeToDayOfWeek",cmd=function(t) return MMCompat.procTimeToDayOfWeek(t) end},
+      {name="TimeToHour",     cmd=function(t) return MMCompat.procTimeToHour(t) end},
+      {name="TimeToMinute",   cmd=function(t) return MMCompat.procTimeToMinute(t) end},
+      {name="TimeToMonth",    cmd=function(t) return MMCompat.procTimeToMonth(t) end},
+      {name="TimeToSecond",   cmd=function(t) return MMCompat.procTimeToSecond(t) end},
+      {name="TimeToYear",     cmd=function(t) return MMCompat.procTimeToYear(t) end},
       {name="TextColor",      cmd=MMCompat.procTextColor},
-      {name="Upper",          cmd=function(val) return string.upper(val) end},
-      {name="Var",            cmd=MMCompat.procVar},
+      {name="Upper",          cmd=function(str) return MMCompat.procUpper(str) end},
+      {name="Var",            cmd=function(var) return MMCompat.procVar(var) end},
       {name="Version",        cmd=function() return "MMCompat " .. MMCompat.version end},
-      {name="Word",           cmd=MMCompat.procWord},
+      {name="Word",           cmd=function(str, num) return MMCompat.procWord(str, num) end},
       {name="WordColor",      cmd=MMCompat.procWordColor},
-      {name="WordCount",      cmd=MMCompat.procWordCount},
+      {name="WordCount",      cmd=function(str) return MMCompat.procWordCount(str) end},
       {name="Year",           cmd=function() return os.date("%Y") end}
-
     }
+
+
 
     MMCompat.loadData()
 
@@ -1087,7 +988,7 @@ function MMCompat.display_info()
   MMCompat.echo(string.format("MudMaster Compatibility v <yellow>%s <white>loaded...", MMCompat.version))
   MMCompat.echo(string.format("    <green>%d <white>commands, <green>%d <white>procedures, <green>%d <white>help entries",
     #MMCompat.functions, #MMCompat.procedures, MMCompat.helpEntries))
-  MMCompat.echo(string.format("    <yellow>%d <white>actions, <yellow>%d <white>aliases, <yellow>%d <white>events, <yellow>%d <white>arrays, <yellow>%d <white>lists, <yellow>%d variables",
+  MMCompat.echo(string.format("    <yellow>%d <white>actions, <yellow>%d <white>aliases, <yellow>%d <white>events, <yellow>%d <white>arrays, <yellow>%d <white>lists, <yellow>%d <white>variables",
     getTableLength(MMCompat.save.actions),
     getTableLength(MMCompat.save.aliases),
     getTableLength(MMCompat.save.events),
@@ -1109,22 +1010,22 @@ function MMCompat.saveData()
   end
 
   local charName = string.lower(getProfileName())
-  
+
   local saveTable = table.deepcopy(MMCompat.save)
-  
+
   table.save(getMudletHomeDir().."/mmcompat_"..charName..".lua", saveTable)
 end
 
 
 function MMCompat.loadData()
   local charName = string.lower(getProfileName())
-  
+
   local loadTable = {}
   local tablePath = getMudletHomeDir().."/mmcompat_"..charName..".lua"
   if io.exists(tablePath) then
     table.load(tablePath, loadTable)
   end
-  
+
   MMCompat.save = table.deepcopy(loadTable)
 
   MMCompat.save.actions = MMCompat.save.actions or {}
@@ -1137,10 +1038,9 @@ function MMCompat.loadData()
   MMCompat.save.highlights = MMCompat.save.highlights or {}
   MMCompat.save.subs = MMCompat.save.subs or {}
   MMCompat.save.variabes = MMCompat.save.variables or {}
-  
+
   MMCompat.echo("Loaded MudMaster script data for <yellow>" .. charName)
 end
-
 
 if not MMCompat.isInitialized then
   math.randomseed(os.time())
@@ -1159,6 +1059,5 @@ MMCompat.initTopLevelGroup("MMActions", "trigger")
 MMCompat.initTopLevelGroup("MMGags", "trigger")
 MMCompat.initTopLevelGroup("MMHighlights", "trigger")
 MMCompat.initTopLevelGroup("MMSubstitutions", "trigger")
-
 
 MMCompat.isInitialized = true

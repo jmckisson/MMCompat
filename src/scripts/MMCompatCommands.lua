@@ -312,15 +312,19 @@ function MMCompat.doIf(strText)
 
     local result = MMCompat.executeString(parsedCondition)
 
+    MMCompat.disableLocalEcho()
+
     if result then
         if foundThen then
-        expandAlias(thenStmt)
+            expandAlias(thenStmt)
         end
     else
         if foundElse then
-        expandAlias(elseStmt)
+            expandAlias(elseStmt)
         end
     end
+
+    MMCompat.restoreLocalEcho()
 end
 
 
@@ -352,19 +356,6 @@ stored in "$LoopCount".
     func = [[MMCompat.doLoop(matches[2])]]
 })
 function MMCompat.doLoop(strText)
-    --[[
-    if MMCompat.isDebug then
-        local dbgTbl = {
-        loopBounds = loopBounds,
-        loopVar = loopVar,
-        cmds = cmds
-        }
-
-        MMCompat.debug("doLoop")
-        display(dbgTbl)
-    end
-    ]]
-
     local foundBounds = false
     local loopBounds = ""
 
@@ -385,6 +376,7 @@ function MMCompat.doLoop(strText)
         return
     end
 
+    --[[
     local function split_string(input)
         local result = {}
         for value in string.gmatch(input, '([^,]+)') do
@@ -395,26 +387,55 @@ function MMCompat.doLoop(strText)
     end
 
     local loopArgs = split_string(loopBounds)
+    --]]
+
+    local refStr, anyMatch = MMCompat.referenceVariables(loopBounds, MMGlobals)
+
+    if anyMatch then
+        loopBounds = refStr
+    end
+
+    local loopArgs = {}
+    for token in string.gmatch(loopBounds, "[^,]+") do
+        MMCompat.debug("parsing token: " .. token)
+        local trimmedToken = string.gsub(token, "%s+", "")
+        MMCompat.debug("inserting token: " .. trimmedToken)
+        table.insert(loopArgs, trimmedToken)
+    end
 
     if MMCompat.isDebug then
+        MMCompat.debug("loopBounds: " .. loopBounds)
+        MMCompat.debug("loopArgs:\n")
         display(loopArgs)
     end
 
     local loopVar = (loopArgs[3] ~= "") and loopArgs[3] or "LoopCount"
     MMCompat.debug("adjusted loopVar: " .. loopVar)
 
-    local loopStep = (loopArgs[1] <= loopArgs[2]) and 1 or -1
+    local loopStart = tonumber(loopArgs[1])
+    local loopStop = tonumber(loopArgs[2])
+    if not loopStart or not loopStop then
 
-    for lv = loopArgs[1], loopArgs[2], loopStep do
+        MMCompat.error("Could not parse loop bounds from '"..loopBounds.."'")
+        return
+    end
+
+    local loopStep = (loopStart <= loopStop) and 1 or -1
+
+    MMCompat.disableLocalEcho()
+
+    for lv = loopStart, loopStop, loopStep do
         MMGlobals[loopVar] = lv
         if MMCompat.isDebug then
-        display(MMGlobals)
+            display(MMGlobals)
         end
 
         MMCompat.debug("iteration "..lv.." cmds: " .. cmdsStmt)
 
         expandAlias(cmdsStmt)
     end
+
+    MMCompat.restoreLocalEcho()
 
 end
 
@@ -463,6 +484,9 @@ function MMCompat.doWhile(strText)
     local parsedCondition = "return " .. MMCompat.replaceVariables(conditionStmt, false)
 
     MMGlobals['whileLoopCount'] = 1
+
+    MMCompat.disableLocalEcho()
+
     while MMCompat.executeString(parsedCondition) do
         if MMCompat.isDebug then
         display(MMGlobals)
@@ -470,7 +494,7 @@ function MMCompat.doWhile(strText)
 
         MMCompat.debug("iteration "..MMGlobals['whileLoopCount'].." cmds: " .. cmdsStmt)
 
-        expandQueue(cmdsStmt)
+        expandAlias(cmdsStmt)
 
         -- Protection from infinite loops, user may edit maxWhileLoop var to adjust
         -- the maximum number of loops a while may execute
@@ -480,6 +504,8 @@ function MMCompat.doWhile(strText)
             break
         end
     end
+
+    MMCompat.restoreLocalEcho()
 end
 
 
@@ -492,27 +518,67 @@ mud.
 
     * {text} Text to display.
 ]],
-    pattern = [[^/showme (?:{(.+?)}|(.+?))$]],
-    func = [[MMCompat.doShowme(matches)]]
+    pattern = [[^/showme (.*)$]],
+    func = [[MMCompat.doShowme(matches[2])]]
 })
-function MMCompat.doShowme(m)
+function MMCompat.doShowme(str)
     MMCompat.debug("doShowme")
-    -- we're given a table of matches, because of the conditional regex matches[2] will be an empty
-    -- string if no {}'s are used
-    local str = (m[2] ~= "") and m[2] or m[3]
+    local strText = str
+    local foundText = false
+    local text = ""
 
-    if MMCompat.isDebug then
-        --printDebug("\nin doShowme\n", true)
+    foundText, text, strText = MMCompat.findStatement(strText)
 
-        echo("doShowme matches:\n")
-        display(m)
+    if not foundText then
+        MMCompat.warning("Could not parse text to show")
+        return
     end
 
-    local varStr = MMCompat.referenceVariables(str, MMGlobals)
+    local varStr = MMCompat.referenceVariables(text, MMGlobals)
 
     --echo("doShowme '" .. str .. "'\n")
     feedTriggers(varStr.."\n")
     echo("")
+end
+
+
+local is_int = function(n)
+    return (type(n) == "number") and (math.floor(n) == n)
+end
+
+
+-- function to find a list in MMCompat.save.lists by name or id
+local function findListByNameOrId(listName)
+    local listTbl = nil
+
+    local listNum = tonumber(listName)
+    if listNum then
+        for k, v in pairs(MMCompat.save.lists) do
+            if tonumber(k) == listNum then
+                listTbl = v
+                break
+            end
+        end
+
+        if not listTbl then
+            MMCompat.warning("Unable to find list with id ".. listNum)
+            return
+        end
+    else
+        for k, v in pairs(MMCompat.save.lists) do
+            if string.lower(v.name) == listName then
+                listTbl = v
+                break
+            end
+        end
+
+        if not listTbl then
+            MMCompat.warning("Unable to find list with name '".. listName.."'")
+            return
+        end
+    end
+
+    return listTbl
 end
 
 
@@ -525,16 +591,40 @@ Creates a new user defined list.
    * {list name} Name of the list you want to create.
    * {group name} Optional, see the user guide for help on groups.
 ]],
-    pattern = [[^/lista(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],
-    func = [[MMCompat.doListAdd(matches[2], matches[3])]]
+    pattern = [[^/lista(?:dd)? (.*)$]],
+    func = [[MMCompat.doListAdd(matches[2])]]
 })
-function MMCompat.doListAdd(name, group)
-    MMGlobals[name] = MMGlobals[name] or {}
+function MMCompat.doListAdd(str)
+    local strText = str
+    local foundName = false
+    local listName = ""
 
-    local tblIdx = MMCompat.index_of(MMCompat.save.lists, name)
+    foundName, listName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Could not parse list name")
+        return
+    end
+
+    local foundGroup = false
+    local groupName = ""
+
+    foundGroup, groupName, strText = MMCompat.findStatement(strText)
+
+
+    local listTbl = {
+        name = listName,
+        count = 0,
+        group = groupName,
+        data = {}
+    }
+
+    local tblIdx = table.index_of(MMCompat.save.lists, listTbl)
     if not tblIdx then
-        table.insert(MMCompat.save.lists, name)
+        table.insert(MMCompat.save.lists, listTbl)
         MMCompat.saveData()
+    else
+        MMCompat.warning("List with that name already exists!")
     end
 end
 
@@ -561,19 +651,60 @@ This will duplicate the list called KhraitShips into a list called KhraitShipsCo
 This will duplicate the list called KhraitShips into a list called
 OldKhraitShips and sort the new list in ascending order.
 ]],
-    pattern = [[^/listc(?:opy)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],
-    func = [[MMCompat.doListCopy(matches[2], matches[3])]]
+    pattern = [[^/listc(?:opy)? (.*)$]],
+    func = [[MMCompat.doListCopy(matches[2])]]
 })
-function MMCompat.doListCopy(from, to)
-    MMGlobals[from] = MMGlobals[from] or {}
+function MMCompat.doListCopy(str)
+    local strText = str
+    local foundFromName = false
+    local listFromName = ""
 
-    local toName = to and to or from.."Copy"
+    foundFromName, listFromName, strText = MMCompat.findStatement(strText)
 
-    MMGlobals[toName] = table.deepcopy(from)
+    if not foundFromName then
+        MMCompat.warning("Could not parse list name")
+        return
+    end
 
-    local tblIdx = MMCompat.index_of(MMCompat.save.lists, toName)
+    local foundToName = false
+    local listToName = ""
+    local foundSort = false
+    local listSort = "a"
+
+    foundToName, listToName, strText = MMCompat.findStatement(strText)
+
+    if not foundToName then
+        listToName = listFromName .. "Copy"
+    else
+        foundSort, listSort, strText = MMCompat.findStatement(strText)
+
+        if foundSort then
+            if string.lower(listSort) ~= 'd' and string.lower(listSort) ~= 'd' then
+                listSort = 'a'
+            end
+        end
+    end
+
+    local listTbl = findListByNameOrId(listFromName)
+ 
+    if not listTbl then
+        return
+    end
+
+    local copyTbl = table.deepcopy(listTbl)
+    copyTbl.name = listToName
+
+    if foundSort then
+        if listSort == 'a' then
+            table.sort(copyTbl.data)
+        else
+            table.sort(copyTbl.data, function(a, b) return a > b end)
+        end
+    end
+
+    local tblIdx = table.index_of(MMCompat.save.lists, copyTbl)
     if not tblIdx then
-        table.insert(MMCompat.save.lists, toName)
+        table.insert(MMCompat.save.lists, copyTbl)
         MMCompat.saveData()
     end
 end
@@ -589,11 +720,28 @@ Removes all the items from the specified list.
    * {list} Name of the list you want to clear.
    * {reference number} Reference number of the list you want to clear.
 ]],
-    pattern = [[^/listd(?:elete)? (?:{(\w+)}|(\w+))$]],
+    pattern = [[^/clearl(?:ist)? (.*)$]],
     func = [[MMCompat.doClearList(matches[2])]]
 })
-function MMCompat.clearList(list)
-    MMCompat[list] = {}
+function MMCompat.doClearList(str)
+    local strText = str
+    local foundName = false
+    local listName = ""
+
+    foundName, listName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Could not parse list name")
+        return
+    end
+
+    local listTbl = findListByNameOrId(listName)
+    if not listTbl then
+        return
+    end
+
+    listTbl.data = {}
+    listTbl.count = 0
 end
 
 
@@ -607,20 +755,92 @@ Deletes a user defined list and any items in the list.
     * {list name} The name of the list you want to delete.
     * {list number} The number of the list you want to delete.
 ]],
-    pattern = [[^/listd(?:elete)? (?:{(\w+)}|(\w+))$]],
+    pattern = [[^/listd(?:elete)? (.*)$]],
     func = [[MMCompat.doListDelete(matches[2])]]
 })
-function MMCompat.doListDelete(name)
-    table.remove(MMGlobals[name])
+function MMCompat.doListDelete(str)
+    local strText = str
+    local foundName = false
+    local listName = ""
 
-    local tblIdx = MMCompat.index_of(MMCompat.save.lists, name)
+    foundName, listName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Could not parse list name")
+        return
+    end
+
+    local listTbl = findListByNameOrId(listName)
+    if not listName then
+        return
+    end
+
+    local tblIdx = table.index_of(MMCompat.save.lists, listTbl)
     if tblIdx then
-        table.remove(MMCompat.save.lists, name)
+        table.remove(MMCompat.save.lists, listTbl)
+        MMCompat.saveData()
     end
 end
 
-local is_int = function(n)
-    return (type(n) == "number") and (math.floor(n) == n)
+
+MMCompat.add_command('lists', {
+    help = [[
+Format: /lists
+
+Displays all the user lists you have defined and how many items are in each
+list.
+]],
+    pattern = [[^/lists$]],
+    func = [[MMCompat.doLists()]]
+})
+function MMCompat.doLists()
+    echo("# Defined Lists:\n")
+    for k, v in pairs(MMCompat.save.lists) do
+
+        echo(string.format("%03s: %s(%d) {%s}\n",
+            tonumber(k), v.name, v.count, v.group))
+
+    end
+end
+
+
+MMCompat.add_command('listitems', {
+    help = [[
+Format: /listitems {list name}
+Format: /listitems {list number}
+
+Displays all the items in a particular list.
+
+    * {list name} The name of the list of items you want to see.
+    * {list number} The number of the list of items you want to see.
+]],
+    pattern = [[^/listi(?:tems)? (.*)$]],
+    func = [[MMCompat.doListItems(matches[2])]]
+})
+function MMCompat.doListItems(str)
+    local strText = str
+    local foundName = false
+    local listName = ""
+
+    foundName, listName, strText = MMCompat.findStatement(strText)
+
+    listName = string.lower(listName)
+
+    if not foundName then
+        MMCompat.error("Unable to parse list id/name from '"..str.."'")
+        return
+    end
+
+    local listTbl = findListByNameOrId(listName)
+    if not listTbl then
+        return
+    end
+
+    cecho(string.format("Items in list [%s](%d):\n", listTbl.name, listTbl.count))
+
+    for k, v in pairs(listTbl.data) do
+        echo(string.format("%03d: %s\n", tonumber(k), v))
+    end
 end
 
 
@@ -635,15 +855,43 @@ Adds a text string to a user defined list. Lists are sorted by order input.
     * {list number} The number of the list to add the item to.
     * {item text} The text to add to the list.
 ]],
-    pattern = [[^/itema(?:dd)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],
-    func = [[MMCompat.doItemAdd(matches)]]
+    pattern = [[^/itema(?:dd)? (.*)$]],
+    func = [[MMCompat.doItemAdd(matches[2])]]
 })
-function MMCompat.doItemAdd(m)
-    local name = m[2]
-    local val = (m[3] ~= "") and m[3] or m[4]
-    MMGlobals[name] = MMGlobals[name] or {}
+function MMCompat.doItemAdd(str)
+    local strText = str
+    local foundName = false
+    local listName = ""
 
-    table.insert(MMGlobals[name], val)
+    foundName, listName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Could not find list by that name")
+        return
+    end
+
+    local foundItem = false
+    local itemName = ""
+    foundItem, itemName, strText = MMCompat.findStatement(strText)
+
+    if not foundItem then
+        MMCompat.warning("Could not parse item name")
+        return
+    end
+
+    itemName = string.lower(itemName)
+
+    local listTbl = findListByNameOrId(listName)
+
+    if not listTbl then
+        return
+    end
+
+    listTbl.data = listTbl.data or {}
+
+    table.insert(listTbl.data, itemName)
+
+    listTbl.count = listTbl.count + 1
 end
 
 
@@ -661,17 +909,57 @@ Deletes an item from a user defined list.
     * {item text} The text of the item to delete.
     * {item number} The number of the item to delete.
 ]],
-    pattern = [[^/itemd(?:elete)? (?:{(\w+)}|(\w+))\s+(?:{(.*?)}|(.*?))$]],
-    func = [[MMCompat.doItemDelete(matches[2], matches[3])]]
+    pattern = [[^/itemd(?:elete)? (.*)$]],
+    func = [[MMCompat.doItemDelete(matches[2])]]
 })
-function MMCompat.doItemDelete(name, textOrId)
-    MMGlobals[name] = MMGlobals[name] or {}
+function MMCompat.doItemDelete(str)
+    local strText = str
+    local foundName = false
+    local listName = ""
 
-    if is_int(textOrId) then
-        table.remove(MMGlobals[name], textOrId)
-    else
-        MMGlobals[name] = nil
+    foundName, listName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Could not parse list name")
+        return
     end
+
+    local foundItem = false
+    local itemName = ""
+    foundItem, itemName, strText = MMCompat.findStatement(strText)
+
+    if not foundItem then
+        MMCompat.warning("Could not parse item name or id")
+        return
+    end
+
+    listName = string.lower(listName)
+
+    -- find the list
+    local listTbl = findListByNameOrId(listName)
+
+    if not listTbl then
+        return
+    end
+
+    listTbl.data = listTbl.data or {}
+    
+    -- find the item
+    local itemNum = tonumber(itemName)
+    if itemNum then
+        -- remove item by number
+        table.remove(listTbl.data, itemNum)
+    else
+        -- remove item by name
+        local itemIdx = table.index_of(listTbl.data, itemName)
+
+        if itemIdx then
+            table.remove(listTbl.data, itemIdx)
+        end
+    end
+
+    listTbl.count = listTbl.count - 1
+
 end
 
 
@@ -1297,6 +1585,159 @@ function MMCompat.listEvents()
 end
 
 
+MMCompat.add_command('resetevent', {
+    help = [[
+Format: /resetevent {event number}
+Format: /resetevent {event name}
+Format: /resetevent *
+
+ResetEvent causes the time elapsed for an event to be reset back to 0. If
+instead of passing an event number you pass an asterisk instead, all events
+will be reset. You might want to reset all events if you are trying to get
+several events to fire at the same time. If you define two events, each to
+fire every 10 seconds they are most likely not going to fire at exactly the
+same time (since created them at different times). If you reset all the events
+they would both be reset to fire in 10 seconds and would fire at the same time
+from then on.
+
+   * {event number} The number of the event you want to reset.
+   * {event name} The name of the event you want to reset.
+   * * Will reset all of the events.
+]],
+    pattern = [[^/resetevent (.*)$]],
+    func = [[MMCompat.doResetEvent(matches[2])]]
+})
+function MMCompat.doResetEvent(str)
+end
+
+
+MMCompat.add_command('seteventtime', {
+    help = [[
+Format: /seteventtime {event number} {new time}
+Format: /seteventtime {event name} {new time}
+
+Changes the frequency of which an event fires. It also resets the time elapsed.
+
+   * {event number} The number of the event you want to set.
+   * {event name} The name of the event you want to set.
+   * {new time} The new frequency of the event.
+]],
+    pattern = [[^/reseteventtime (.*)$]],
+    func = [[MMCompat.doResetEventTime(matches[2])]]
+})
+function MMCompat.doResetEventTime(str)
+end
+
+
+MMCompat.add_command('disableevent', {
+    help = [[
+Format: /disableevent {reference number}
+Format: /disableevent {event name}
+
+DisableEvent allows you to turn individual events off. You can see which events
+you have disabled when you list all of your defined events. Disabled events will
+have an asterisk right after their reference number.
+
+    * {reference number} The number of the event to disable.
+    * {event name} The name of the event to disable.
+]],
+    pattern = [[^/disableevent (.*)$]],
+    func = [[MMCompat.doUnEvent(matches[2])]]
+})
+
+
+MMCompat.add_command('unevent', {
+    help = [[
+Format: /unevent {event number}
+Format: /unevent {event name}
+
+This command removes an event from the eventlist.
+
+***Note*** In Mudlet we cannot delete GUI timers via the Lua interface, well
+can only disable the timer, which this function does instead of removing the
+event.
+
+   * {reference number} The number of the event you want to remove.
+   * {event name} The name of the event you want to remove.
+]],
+    pattern = [[^/unevent (.*)$]],
+    func = [[MMCompat.doUnEvent(matches[2])]]
+})
+function MMCompat.doUnEvent(str)
+    local strText = str
+    local foundName = false
+    local eventName = ""
+
+    foundName, eventName, strText = MMCompat.findStatement(strText)
+
+    eventName = string.lower(eventName)
+
+    if not foundName then
+        MMCompat.error("Unable to parse event id/name from '"..str.."'")
+        return
+    end
+
+    --if they supplied a number, find the event by that number
+    local eventNum = tonumber(eventName)
+    local eventTbl = nil
+    if eventNum then
+        for k, v in pairs(MMCompat.save.events) do
+            if tonumber(k) == eventNum then
+                eventTbl = v
+                break
+            end
+        end
+
+        if not eventTbl then
+            MMCompat.warning("Unable to find event with id ".. eventNum)
+            return
+        end
+    else
+        for k, v in pairs(MMCompat.save.events) do
+            if string.lower(v.name) == eventName then
+                eventTbl = v
+                break
+            end
+        end
+
+        if not eventTbl then
+            MMCompat.warning("Unable to find event with name '".. eventName.."'")
+            return
+        end
+    end
+
+    if exists(eventTbl.name, "timer") == 0 then
+        MMCompat.warning("Unable to find Mudlet timer matching event...")
+        MMCompat.warning("However it exists in your MM events list, we will create")
+        MMCompat.warning("the event for you and leave its state disabled")
+
+        -- Note this is much the same code as in makeEvent, consider a
+        -- refactor for consolidation
+        local commands = MMCompat.parseCommands(eventTbl.cmd, false, false)
+
+        local itemType = "timer"
+        local itemParent = "MMEvents"
+        if eventTbl.group ~= "" then
+            itemParent = eventTbl.group
+        end
+
+        MMCompat.initTopLevelGroup("MMEvents", "timer")
+
+        local treeGroup = MMCompat.createParentGroup(eventTbl.group, itemType, itemParent)
+
+        permTimer(eventName, treeGroup, eventTbl.freq, commands)
+
+        local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
+        if not tblIdx then
+            table.insert(MMCompat.save.events, eventTbl)
+            MMCompat.saveData()
+        end
+    end
+
+    disableTimer(eventTbl.name)
+end
+
+
 MMCompat.add_command('variable', {
     help = [[
 Format: /variable {variable name} {value} {group name}
@@ -1613,11 +2054,8 @@ function MMCompat.makeArray(str)
     local arrayTbl = {
         bounds = {rows=arrayRows, cols=arrayCols or 0},
         name = arrayName,
-        group = arrayGroup
-    }
-
-    MMGlobals[arrayName] = {
-        value = {}
+        group = arrayGroup,
+        data = {}
     }
 
     local tblIdx = table.index_of(MMCompat.save.arrays, arrayTbl)
@@ -1700,42 +2138,19 @@ function MMCompat.doAssign(str)
         end
     end
 
-    local found = MMCompat.findArray(arrayName, arrayRow, arrayCol)
+    local arrayTbl = MMCompat.findArray(arrayName, arrayRow, arrayCol)
 
-    -- try to find array in arrays savelist
-    --[[
-    local found = false
-    for k, v in pairs(MMCompat.save.arrays) do
-        if v.name == arrayName then
-            found = true
-            -- check bounds
-            if arrayRow > v.bounds.rows then
-                MMCompat.error(string.format("Array '%s' row index out of bounds, given %d, bounds %d",
-                    v.name, arrayRow, v.bounds.row))
-                return
-            end
-            if v.bounds.cols and arrayCol and arrayCol > v.bounds.cols then
-                MMCompat.error(string.format("Array '%s' col index out of bounds, given %d, bounds %d",
-                    v.name, arrayCol, v.bounds.col))
-                return
-            end
-            break
-        end
-    end
-    --]]
-
-    if not found then
+    if not arrayTbl then
         MMCompat.warning(string.format("Array '%s' not found", arrayName))
         return
     end
 
-    MMGlobals[arrayName]['value'][arrayRow] = MMGlobals[arrayName]['value'][arrayRow] or {}
+    arrayTbl['data'][arrayRow] = arrayTbl['data'][arrayRow] or {}
 
     if arrayCol then
-
-        MMGlobals[arrayName]['value'][arrayRow][arrayCol] = arrayValue
+        arrayTbl['data'][arrayRow][arrayCol] = arrayValue
     else
-        MMGlobals[arrayName]['value'][arrayRow] = arrayValue
+        arrayTbl['data'][arrayRow] = arrayValue
     end
 
 end
@@ -1779,10 +2194,14 @@ function MMCompat.doRead(str)
 
     MMCompat.isLoading = true
 
+    MMCompat.disableLocalEcho()
+
     -- Read file line by line
     for line in file:lines() do
         expandAlias(line)
     end
+
+    MMCompat.restoreLocalEcho()
 
     -- Close the file
     file:close()
