@@ -1,9 +1,9 @@
 {
        "package": "MMCompat",
        "title": "MudMaster Script Compatibility",
-       "version": "0.10.0a",
+       "version": "0.10.1a",
        "author": "Kymbahl",
        "icon": "",
-       "dependencies": "MedUI",
+       "dependencies": "",
        "outputFile": true
 }

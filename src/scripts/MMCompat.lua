@@ -196,12 +196,12 @@ function MMCompat.show_help(cmd)
           MMCompat.echo("No help file on that command.")
           return
       end
+
+      cecho("<yellow>"..cmd.."\n")
+      cecho("<:RoyalBlue>                                                                                <reset>\n")
   else
       cmd = 1
   end
-
-  cecho("<yellow>"..cmd.."\n")
-  cecho("<:RoyalBlue>                                                                                <reset>\n")
 
   for w in MMCompat.help[cmd]:gmatch("[^\n]*\n") do
 
