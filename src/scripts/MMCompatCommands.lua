@@ -1608,6 +1608,41 @@ from then on.
     func = [[MMCompat.doResetEvent(matches[2])]]
 })
 function MMCompat.doResetEvent(str)
+    local strText = str
+    local foundEvent = false
+    local eventName = ""
+
+    foundEvent, eventName, strText = MMCompat.findStatement(strText)
+
+    if not foundEvent then
+        MMCompat.warning("Could not parse event name")
+        return
+    end
+
+    local allEvents = false
+    if eventName == '*' then
+        allEvents = true
+    else
+        eventName = string.lower(eventName)
+    end
+
+    local eventNum = tonumber(eventName)
+    if eventNum then
+        for k, v in pairs(MMCompat.save.events) do
+            if allEvents or tonumber(k) == eventNum then
+                disableTimer(v.name)
+                enableTimer(v.name)
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.events) do
+            if allEvents or string.lower(v.name) == eventName then
+                disableTimer(v.name)
+                enableTimer(v.name)
+            end
+        end
+    end
+
 end
 
 
@@ -1626,6 +1661,61 @@ Changes the frequency of which an event fires. It also resets the time elapsed.
     func = [[MMCompat.doResetEventTime(matches[2])]]
 })
 function MMCompat.doResetEventTime(str)
+    local strText = str
+    local foundEvent = false
+    local eventName = ""
+
+    foundEvent, eventName, strText = MMCompat.findStatement(strText)
+
+    if not foundEvent then
+        MMCompat.warning("Could not parse event name")
+        return
+    end
+
+    local foundTime = false
+    local eventTime = ""
+
+    foundTime, eventTime, strText = MMCompat.findStatement(strText)
+
+    if not foundTime then
+        MMCompat.warning("Could not parse event time")
+        return
+    end
+
+    local eventFreq = tonumber(eventTime)
+    if not eventFreq then
+        MMCompat.warning("Could not parse event time")
+        return
+    end
+
+    eventName = string.lower(eventName)
+    local eventTbl = nil
+
+    local eventNum = tonumber(eventName)
+    if eventNum then
+        for k, v in pairs(MMCompat.save.events) do
+            if tonumber(k) == eventNum then
+                eventTbl = v
+                break
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.events) do
+            if string.lower(v.name) == eventName then
+                eventTbl = v
+                break
+            end
+        end
+    end
+
+    if not eventTbl then
+        MMCompat.warning("Cannot find event")
+        return
+    end
+
+    disableTimer(eventTbl.name)
+    eventTbl.freq = eventFreq
+    enableTimer(eventTbl.name)
 end
 
 
