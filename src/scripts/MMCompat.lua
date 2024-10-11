@@ -83,12 +83,6 @@ MMCompat.help = {[[
 
   Commands are prefixed by a forward-slash /.
 
-    <link: action>action</link>  - Create an Action (Mudlet trigger)
-    <link: alias>alias</link>   - Create an Alias
-    <link: array>array</link>   - Create an array
-    <link: assign>assign</link>  - Assign a variable to an array
-    <link: event>event</link>   - Create an Event (Mudlet timer)
-
   All Commands:
     <show_all_cmds>
 
@@ -103,6 +97,33 @@ MMCompat.help = {[[
 
 ]]
 }
+
+local function createAlignedColumnLinks(commands, columns, columnWidth)
+  local result = ""
+  local line = ""
+
+  for i, command in ipairs(commands) do
+      -- Create the link for the command
+      local link = string.format("<link: %s>%s</link>", command, command)
+  
+      -- Add the link to the current line, ensuring it is padded to the column width
+      line = line .. link .. string.rep(" ", columnWidth - #command) -- 15 for the length of "<link: ></link>"
+   
+      -- If this is the third column (assuming 3 columns per line), start a new line
+      if i % columns == 0 then
+          result = result .. line .. "\n"
+          line = ""
+      end
+  end
+
+  -- Add any remaining commands if the number of commands is not a multiple of 3
+  if line ~= "" then
+      result = result .. line .. "\n"
+  end
+
+  return result
+end
+
 
 
 function MMCompat.debug(msg)
@@ -146,6 +167,10 @@ end
 
 
 function MMCompat.add_help(cmd, entry)
+  if table.index_of(MMCompat.help, cmd) then
+    return
+  end
+
   MMCompat.helpEntries = MMCompat.helpEntries + 1
 
   local function add_help_cmd(cmd_str, cmd_entry)
@@ -275,6 +300,39 @@ function MMCompat.show_help(cmd)
 
     else
 
+      -- handle multiple <url> and <link> tags on the same line
+      local current_pos = 1
+      local line_length = #w
+
+      -- Pattern to match both opening <link:> and closing </link> tags
+      local pattern = "(.-)<link: ([^>]+)>([^<]*)</link>"
+
+      -- Iterate over all occurrences of the <link> pattern
+      for before, link, linktext in w:gmatch(pattern) do
+          -- Print the text before the link
+          cecho(before)
+
+          -- Set the link style
+          fg("yellow")
+          setUnderline(true)
+
+          -- Create the link
+          echoLink(linktext, [[MMCompat.show_help("]] .. link .. [[")]], "View: MMCompat help " .. link, true)
+
+          -- Reset style
+          setUnderline(false)
+          resetFormat()
+
+          -- Move the current position forward to the end of the last matched link
+          current_pos = current_pos + #before + #link + #linktext + 15 -- 15 for the length of "<link: >" and "</link>"
+      end
+
+      -- Print the remaining part of the line (if any) after the last <link>
+      if current_pos <= line_length then
+          cecho(w:sub(current_pos))
+      end
+
+      --[=[
       -- handle <url> and <link> tags
       local url, target = rex.match(w, [[<(url)?link: ([^>]+)>]])
       -- lrexlib returns a non-capture as 'false', so determine which variable the capture went into
@@ -301,6 +359,7 @@ function MMCompat.show_help(cmd)
       else
           cecho(w)
       end
+      --]=]
     end
   end
 
@@ -968,8 +1027,6 @@ function MMCompat.config()
       {name="Year",           cmd=function() return os.date("%Y") end}
     }
 
-
-
     MMCompat.loadData()
 
     tempTimer(.25, [[MMCompat.display_info()]])
@@ -1059,5 +1116,63 @@ MMCompat.initTopLevelGroup("MMActions", "trigger")
 MMCompat.initTopLevelGroup("MMGags", "trigger")
 MMCompat.initTopLevelGroup("MMHighlights", "trigger")
 MMCompat.initTopLevelGroup("MMSubstitutions", "trigger")
+
+MMCompat.add_help('commands', [[
+  <cyan>Chat Commands<reset>
+  ]]
+    ..createAlignedColumnLinks({'call', 'chat', 'chatall'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'chatname', 'emote', 'emoteall'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'unchat'}, 3, 20)..[[
+
+  <cyan>List Commands<reset>
+  ]]
+    ..createAlignedColumnLinks({'clearlist', 'itemadd', 'itemdelete'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'listadd', 'listcopy', 'listdelete'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'listitems', 'lists'}, 3, 20)..[[
+
+  <cyan>Script Control Commands<reset>
+  ]]
+    ..createAlignedColumnLinks({'disableevent', 'disablegroup', 'editvariable'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'enablegroup', 'killgroup', 'resetevent'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'seteventtime', 'unevent', 'unvariable'}, 3, 20)..[[
+
+  <cyan>Dll Commands<reset>
+  <link: loadlibrary>loadlibrary</link>
+
+  <cyan>Script Entity Information<reset>
+
+  <cyan>Sound Commands<reset>
+
+  <cyan>Script Entities<reset>
+  ]]
+    ..createAlignedColumnLinks({'action', 'alias', 'array'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'assign', 'empty', 'event'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'gag', 'highlight', 'macro'}, 3, 20).."  "
+    ..createAlignedColumnLinks({'substitute', 'variable'}, 3, 20)..[[
+
+  <cyan>Log Commands<reset>
+
+  <cyan>Script Flow Control<reset>
+  ]]
+    ..createAlignedColumnLinks({'if', 'loop', 'while'}, 3, 20)..[[
+
+  <cyan>Session Control Commands<reset>
+  <link: zap>zap</link>
+
+  <cyan>Display Output Commands<reset>
+  <link: showme>showme</link>
+
+  <cyan>Speed Walk Commands<reset>
+
+  <cyan>File Commands<reset>
+  <link: read>read</link>
+
+  <cyan>Session Window Commands<reset>
+
+  <cyan>Other<reset>
+  ]]
+    ..createAlignedColumnLinks({'math', 'remark'}, 3, 20)..[[
+
+]])
 
 MMCompat.isInitialized = true
