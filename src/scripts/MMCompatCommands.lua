@@ -509,7 +509,7 @@ function MMCompat.doWhile(strText)
 end
 
 
-MMCompat.add_command('math' {
+MMCompat.add_command('math', {
     help = [[
 Format: /math {variable for result} {math expression}
 
