@@ -624,7 +624,6 @@ the value is not placed into a variable. See the help on math for more
 information.
 ]])
 function MMCompat.procMath(strMath)
-    --local strMath = params:match("%S+")
 
     -- Check if strMath is empty
     if strMath == "" then

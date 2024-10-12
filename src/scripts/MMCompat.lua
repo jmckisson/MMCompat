@@ -385,6 +385,39 @@ function MMCompat.disableLocalEcho()
 end
 
 
+function MMCompat.findListTableIdx(varTbl)
+  for k, v in ipairs(MMCompat.save.lists) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.name == varTbl.name and v.group == varTbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findArrayTableIdx(varTbl)
+  for k, v in ipairs(MMCompat.save.arrays) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.name == varTbl.name and v.group == varTbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findVariableTableIdx(varTbl)
+  for k, v in ipairs(MMCompat.save.variables) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.name == varTbl.name and v.group == varTbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
 function MMCompat.parseCommaValues(str)
     local val1 = nil
     local val2 = nil
@@ -1140,7 +1173,9 @@ MMCompat.add_help('commands', [[
   [[
 
   <cyan>Dll Commands<reset>
-  <link: loadlibrary>loadlibrary</link>
+  ]]
+    ..createAlignedColumnLinks({'calldll', 'dll', 'freelibrary', 'loadlibrary'}, 3, 20, "  ")..
+  [[
 
   <cyan>Script Entity Information<reset>
 

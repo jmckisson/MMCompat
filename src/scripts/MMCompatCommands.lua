@@ -183,8 +183,24 @@ function MMCompat.doEmoteAll(str)
         MMCompat.error("MMCP is not implemented in this version of Mudlet")
         return
     end
+    local strText = str
+    local text
 
-    local messageStr = MMCompat.referenceVariables(str, MMGlobals)
+    -- handle single string argument with or without curly brackets
+    if string.sub(str, 1, 1) == '{' then
+        local foundText = false
+        foundText, text, strText = MMCompat.findStatement(strText)
+
+        if not foundText then
+            MMCompat.warning("Could not parse text to emote")
+            return
+        end
+
+    else
+        text = strText
+    end
+
+    local messageStr = MMCompat.referenceVariables(text, MMGlobals)
 
     local emoteStr = "says, '" .. messageStr .. "'"
     chatEmoteAll(emoteStr)
@@ -589,7 +605,7 @@ function MMCompat.doMath(str)
 
     MMGlobals[varName] = mathResult
 
-    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
+    local varIdx = MMCompat.findVariableTableIdx(varTbl)
     if not varIdx then
         table.insert(MMCompat.save.variables, varTbl)
         MMCompat.saveData()
@@ -616,11 +632,17 @@ function MMCompat.doShowme(str)
     local foundText = false
     local text = ""
 
-    foundText, text, strText = MMCompat.findStatement(strText)
+    
+    if string.sub(str, 1, 1) == '{' then
+        foundText, text, strText = MMCompat.findStatement(strText)
 
-    if not foundText then
-        MMCompat.warning("Could not parse text to show")
-        return
+        if not foundText then
+            MMCompat.warning("Could not parse text to show")
+            return
+        end
+
+    else
+        text = strText
     end
 
     local varStr = MMCompat.referenceVariables(text, MMGlobals)
@@ -708,7 +730,7 @@ function MMCompat.doListAdd(str)
         data = {}
     }
 
-    local tblIdx = table.index_of(MMCompat.save.lists, listTbl)
+    local tblIdx = MMCompat.findListTableIdx(listTbl)
     if not tblIdx then
         table.insert(MMCompat.save.lists, listTbl)
         MMCompat.saveData()
@@ -791,7 +813,7 @@ function MMCompat.doListCopy(str)
         end
     end
 
-    local tblIdx = table.index_of(MMCompat.save.lists, copyTbl)
+    local tblIdx = MMCompat.findListTableIdx(copyTbl)
     if not tblIdx then
         table.insert(MMCompat.save.lists, copyTbl)
         MMCompat.saveData()
@@ -864,7 +886,7 @@ function MMCompat.doListDelete(str)
         return
     end
 
-    local tblIdx = table.index_of(MMCompat.save.lists, listTbl)
+    local tblIdx = MMCompat.findListTableIdx(listTbl)
     if tblIdx then
         table.remove(MMCompat.save.lists, listTbl)
         MMCompat.saveData()
@@ -2283,7 +2305,7 @@ function MMCompat.makeVariable(strText)
 
     MMGlobals[varName]= processedVal
 
-    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
+    local varIdx = MMCompat.findVariableTableIdx(varTbl)
     if not varIdx then
         table.insert(MMCompat.save.variables, varTbl)
         MMCompat.saveData()
@@ -2351,7 +2373,7 @@ function MMCompat.doUnVariable(str)
 
     MMGlobals[varName] = nil
 
-    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
+    local varIdx = MMCompat.findVariableTableIdx(varTbl)
     if varIdx then
         table.remove(MMCompat.save.variables, varTbl)
         MMCompat.saveData()
@@ -2415,7 +2437,7 @@ function MMCompat.doEmpty(str)
 
     MMGlobals[varName] = ""
 
-    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
+    local varIdx = MMCompat.findVariableTableIdx(varTbl)
     if not varIdx then
         table.insert(MMCompat.save.variables, varTbl)
         MMCompat.saveData()
@@ -2539,7 +2561,7 @@ function MMCompat.makeArray(str)
         data = {}
     }
 
-    local tblIdx = table.index_of(MMCompat.save.arrays, arrayTbl)
+    local tblIdx = MMCompat.findArrayTableIdx(arrayTbl)
     if not tblIdx then
         table.insert(MMCompat.save.arrays, arrayTbl)
         MMCompat.saveData()
@@ -2725,6 +2747,19 @@ function MMCompat.doRemark(str)
 end
 
 
+MMCompat.add_command('dll', {
+    help = [[
+Format: /dll
+
+Shows all the user defined DLLs you have loaded.
+]],
+    pattern = [[^/dll$]],
+    func = [[MMCompat.doDll()]]
+})
+function MMCompat.doDll()
+end
+
+
 MMCompat.add_command('loadlibrary', {
     help = [[
 Format: /loadlibrary {dll name}
@@ -2757,6 +2792,104 @@ Check the UserGuide for more information on Dll's.
     func = [[MMCompat.doLoadLibrary(matches[2])]]
 })
 function MMCompat.doLoadLibrary(str)
+end
+
+
+MMCompat.add_command('freelibrary', {
+    help = [[
+Format: /freelibrary {dll name}
+
+Removes a user defined DLL from memory.
+
+***Note*** This has no effect in Mudlet, all common DLL actions
+are implemented in Mudlet by default
+
+   * {dll name} Name of the user defined DLL.
+]],
+    pattern = [[^/freelib(?:rary)? (.*)$]],
+    func = [[MMCompat.doFreeLibrary(matches[2])]]
+})
+function MMCompat.doFreeLibrary(str)
+end
+
+
+MMCompat.add_command('calldll', {
+    help = [[
+Format: /calldll {dll name} {function name} {parameters to send}
+
+This command is used to call functions in a user defined DLL.
+
+    * {dll name} The name of a loaded DLL to call.
+    * {function name} The name of a function to call in the DLL.
+    * {parameters to send} Information to send to the DLL function. Variables,
+        functions, etc... are translated before being sent to the DLL.
+
+Example:
+
+/calldll {MyDLL} {MyFunction} {Some text to send and a variable $Var}
+This will call the function "MyFunction" defined in the DLL "MyDLL" and send the
+text "Some text..."
+
+For more information please see the dll's help file.
+]],
+    pattern = [[^/calldll (.*)$]],
+    func = [[MMCompat.doCallDll(matches[2])]]
+})
+
+function MMCompat.doCallDll(str)
+    local strText = str
+    local foundDllName = false
+    local dllName = ""
+
+    foundDllName, dllName, strText = MMCompat.findStatement(strText)
+
+    if not foundDllName then
+      MMCompat.error("Error parsing DLL name from '" .. str.."'")
+      return
+    end
+
+    local foundFuncName = false
+    local funcName = ""
+
+    foundFuncName, funcName, strText = MMCompat.findStatement(strText)
+
+    if not foundFuncName then
+      MMCompat.error("Error parsing DLL function from '" .. str.."'")
+      return
+    end
+
+
+    local foundParams = false
+    local dllParams = ""
+
+    foundParams, dllParams, strText = MMCompat.findStatement(strText)
+
+    if not foundParams then
+      MMCompat.error("Error parsing DLL parameters from '" .. str.."'")
+      return
+    end
+
+    dllName = string.lower(dllName)
+    funcName = string.lower(funcName)
+
+    local saveDataTbl = nil
+    local saveType = ""
+    if dllName == "math.dll" then
+        saveDataTbl = MMCompat.doMathDll(funcName, dllParams)
+        saveType = "var"
+    end
+
+    if saveDataTbl then
+        if saveType == "var" then
+            local varIdx = MMCompat.findVariableTableIdx(saveDataTbl)
+            if not varIdx then
+                table.insert(MMCompat.save.variables, saveDataTbl)
+                MMCompat.saveData()
+            end
+        end
+        
+    end
+
 end
 
 

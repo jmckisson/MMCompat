@@ -15,6 +15,11 @@
               "isFolder": "no"
        },
        {
+              "name": "MMMathDll.lua",
+              "isActive": "yes",
+              "isFolder": "no"
+       },
+       {
               "name": "MMCompatTest",
               "isActive": "no",
               "isFolder": "no"
