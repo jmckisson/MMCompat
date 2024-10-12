@@ -623,8 +623,8 @@ Returns the result of a math expression. The works the same way as /math, only
 the value is not placed into a variable. See the help on math for more
 information.
 ]])
-function MMCompat.procMath(params)
-    local strMath = params:match("%S+")
+function MMCompat.procMath(strMath)
+    --local strMath = params:match("%S+")
 
     -- Check if strMath is empty
     if strMath == "" then
@@ -636,8 +636,14 @@ function MMCompat.procMath(params)
     local isInteger = not strMath:find("%.")
     local strResult
 
+    MMCompat.debug("strMath: "..strMath)
+
+    local processedParams, anyMatches = MMCompat.referenceVariables(strMath, MMGlobals)
+
+    MMCompat.debug("processedParams: "..processedParams)
+
     -- Try evaluating the math expression
-    local func = loadstring("return " .. strMath)
+    local func = loadstring("return " .. processedParams)
     if func then
         local success, result = pcall(func)
         if success then
@@ -653,7 +659,7 @@ function MMCompat.procMath(params)
             return false
         end
     else
-        MMCompat.warning("# Error in Math Formula: " .. err)
+        MMCompat.warning("# Error in Math Formula: " .. processedParams)
         return false
     end
 
