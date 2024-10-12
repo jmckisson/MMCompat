@@ -509,6 +509,95 @@ function MMCompat.doWhile(strText)
 end
 
 
+MMCompat.add_command('math' {
+    help = [[
+Format: /math {variable for result} {math expression}
+
+The math command lets you perform mathematical equations and place the result in
+a variable. Math does integer math only (no floating point).
+
+   * {variable for result} The name of the variable to place the result in. If
+     the variable doesn't exist it will be created.
+   * {math expression} Mathematical expression to be evaluated.
+
+Operator  Description
+--------  -----------
+()        Precedence
+*         Multiplication
+/         Division
+%         Modulus
++         Addition
+-         Subtraction
+
+Anything enclosed in the parens will be evaulated first. Then all the
+multiplication, division and modulus operators are evaulated left to right.
+Then addition and subtraction are evaluated left to right.
+
+/math and @Math() now supports floating point numbers if a decimal is seen in
+the equation.
+
+/math {result} {3 + 5 * 4}
+Would place the number 23 in a variable called "result."
+
+/math {result} {(3 + 5) * 4}
+Would place the number 32 in a variable called "result."
+
+/math {result} {$result + 1}
+Adds 1 to variable "result."
+
+/math {result} {5 % 3}
+The modulus operator returns the remainder of a division as an integer. This
+would place the number 2 in the variable "result." 5 divided by 3 leaves a
+remainder of 2.
+
+/math {result} {3 / 2.0}
+Would place the number 1.6667 in a variable called "result." Because the
+expression contains a floating point number it will return a floating point
+number.
+]],
+    pattern = [[^/math (.*)$]],
+    func = [[MMCompat.doMath(matches[2])]]
+})
+function MMCompat.doMath(str)
+    local strText = str
+    local foundVar = false
+    local varName = ""
+
+    foundVar, varName, strText = MMCompat.findStatement(strText)
+
+    if not foundVar then
+        MMCompat.warning("Unable to parse variable name")
+        return
+    end
+
+    local foundExp = false
+    local expStr = ""
+
+    foundExp, expStr, strText = MMCompat.findStatement(strText)
+
+    if not foundExp then
+        MMCompat.warning("Unable to parse variable name")
+        return
+    end
+
+    local mathResult = MMCompat.procMath(expStr)
+
+    local varTbl = {
+        name = varName,
+        group = ""
+    }
+
+    MMGlobals[varName] = mathResult
+
+    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
+    if not varIdx then
+        table.insert(MMCompat.save.variables, varTbl)
+        MMCompat.saveData()
+    end
+
+end
+
+
 MMCompat.add_command('showme', {
     help = [[
 Format: /showme {text}
@@ -1084,6 +1173,115 @@ function MMCompat.makeAction(strText)
 end
 
 
+MMCompat.add_command('editaction', {
+    help = [[
+Format: /editaction {reference number}
+Format: /editaction {text pattern}
+
+Editaction allows you to easily edit an action without having to type the whole
+thing over. You can either use the reference number shown when you list your
+defined actions or the trigger text to edit it. The action is then placed in the
+input line so that you have full editing capabilities.
+
+   * {reference number} The number of the action you want to edit.
+   * {text pattern} The trigger text of the action you want to edit.
+
+** NOTE: Actions are stored and looked up by the trigger text. If you edit an
+action and you change the trigger portion of that action when you press enter a
+new action with that trigger will be created. This will not erase the action
+that you had originally edited. If you wish to remove the original version you
+need to use /unaction.
+]],
+    pattern = [[^/edita(?:ction)? (.*)$]],
+    func = [[MMCompat.doEditAction(matches[2])]]
+})
+function MMCompat.doEditAction(str)
+    local foundAction = false
+    local actionName = ""
+    local strText = str
+
+    foundAction, actionName, strText = MMCompat.findStatement(strText)
+
+    if not foundAction then
+      MMCompat.error("Error parsing action name from '" .. str.."'")
+      return
+    end
+
+    local actionTbl = nil
+    actionName = string.lower(actionName)
+    local actionNum = tonumber(actionName)
+    if actionNum then
+        for k, v in pairs(MMCompat.save.actions) do
+            if tonumber(k) == actionNum then
+                actionTbl = v
+                break
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.actions) do
+            if string.lower(v.pattern) == actionName then
+                actionTbl = v
+                break
+            end
+        end
+    end
+
+    if not actionTbl then
+        MMCompat.warning("Unable to find action")
+        return
+    end
+
+    clearCmdLine()
+    appendCmdLine("/action {"..actionTbl.pattern.."} {"..actionTbl.cmd.."} {"..actionTbl.group.."}")
+end
+
+
+MMCompat.add_command('unaction', {
+    help = [[
+Format: /unaction {reference number}
+Format: /unaction {text pattern}
+
+Removes an action from your action list. You can either type the number of the
+action which you see when you list the actions or an exact text match of the
+trigger portion.
+
+   * {reference number} The number of the action to remove.
+   * {text pattern} The trigger text of the action to remove.
+]],
+    pattern = [[^/unaction (.*)$]],
+    func = [[MMCompat.doUnAction(matches[2])]]
+})
+function MMCompat.doUnAction(str)
+    local strText = str
+    local foundName = false
+    local ptrn = ""
+
+    foundName, ptrn, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Cannot parse action name")
+        return
+    end
+
+    local actionNum = tonumber(ptrn)
+    if actionNum then
+        for k, v in pairs(MMCompat.save.actions) do
+            if tonumber(k) == actionNum then
+                disableTrigger(v.name)
+                break
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.actions) do
+            if v.name == ptrn then
+                disableTrigger(v.name)
+                break
+            end
+        end
+    end
+end
+
+
 MMCompat.add_command('substitute', {
     help = [[
 Format: /substitute {text pattern} {replacement text} {group name}
@@ -1468,6 +1666,112 @@ function MMCompat.makeAlias(str)
 end
 
 
+MMCompat.add_command('editalias', {
+    help = [[
+Format: /editalias {reference number}
+Format: /editalias {alias name}
+
+Editalias allows you to easily edit an alias without having to type the whole
+thing over. You can either use the reference number shown when you list your
+defined aliases or the shortcut text to edit it. The alias is then placed in the
+input line so that you have full editing capabilities.
+
+   * {reference number} The number of the alias you want to edit.
+   * {alias name} The name of the alias you want to edit.
+
+** NOTE: Aliases are stored and looked up by the shortcut text. If you edit an
+alias and change the shortcut portion of that alias when you press enter a new
+alias will be created. This will not erase the alias that you had originally
+edited. If you wish to remove the original version you need to use /unalias.
+]],
+    pattern = [[^/editalias (.*)$]],
+    func = [[MMCompat.doEditAlias(matches[2])]]
+})
+function MMCompat.doEditAlias(str)
+    local foundAlias = false
+    local aliasName = ""
+    local strText = str
+
+    foundAlias, aliasName, strText = MMCompat.findStatement(strText)
+
+    if not foundAlias then
+      MMCompat.error("Error parsing alias name from '" .. str.."'")
+      return
+    end
+
+    local aliasTbl = nil
+    aliasName = string.lower(aliasName)
+    local aliasNum = tonumber(aliasName)
+    if aliasNum then
+        for k, v in pairs(MMCompat.save.aliases) do
+            if tonumber(k) == aliasNum then
+                aliasTbl = v
+                break
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.aliases) do
+            if string.lower(v.name) == aliasName then
+                aliasTbl = v
+                break
+            end
+        end
+    end
+
+    if not aliasTbl then
+        MMCompat.warning("Unable to find alias")
+        return
+    end
+
+    clearCmdLine()
+    appendCmdLine("/alias {"..aliasTbl.name.."} {"..aliasTbl.cmd.."} {"..aliasTbl.group.."}")
+end
+
+
+MMCompat.add_command('unalias', {
+    help = [[
+Format: /unalias {reference number}
+Format: /unalias {alias name}
+
+Remove an alias from your alias list. You can either type the number of the
+alias which you see when you list the aliases or an exact text match of the
+shortcut.
+
+   * {reference number} The number of the alias you want to remove.
+   * {alias name} The name of the alias you want to remove.
+]],
+    pattern = [[^/unalias (.*)$]],
+    func = [[MMCompat.doUnAlias(matches[2])]]
+})
+function MMCompat.doUnAlias(str)
+    local strText = str
+    local foundName = false
+    local aliasName = ""
+
+    foundName, aliasName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Unable to parse alias name")
+        return
+    end
+
+    local aliasNum = tonumber(aliasName)
+    if aliasNum then
+        for k, v in pairs(MMCompat.save.aliases) do
+            if tonumber(k) == aliasNum then
+                disableAlias(v.name)
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.aliases) do
+            if v.name == aliasName then
+                disableAlias(v.name)
+            end
+        end
+    end
+end
+
+
 MMCompat.add_command('event', {
     help = [[
 Format: /event {name} {frequency} {event actions} {group}
@@ -1580,6 +1884,57 @@ function MMCompat.listEvents()
             echo(string.format("%03s: {%s} {F:%d} {T:%d} {%s}\n",
                 tonumber(k), v.name, v.freq, evtTime, v.cmd))
 
+        end
+    end
+end
+
+
+MMCompat.add_command('fireevent', {
+    help = [[
+Format: /fireevent {event number}
+Format: /fireevent {event name}
+
+FireEvent causes an event to be fired before the time has elapsed. This also
+resets the time elapsed to 0 for this event.
+
+   * {event number} The number of the event to fire.
+   * {event name} The name of the event to fire.
+
+/fireevent 1
+Would fire the first event in the event list. Also the time elapsed is set
+back to 0.
+]],
+    pattern = [[^/fireevent (.*)$]],
+    func = [[MMCompat.doFireEvent(matches[2])]]
+})
+function MMCompat.doFireEvent(str)
+    local strText = str
+    local foundEvent = false
+    local eventName = ""
+
+    foundEvent, eventName, strText = MMCompat.findStatement(strText)
+
+    if not foundEvent then
+        MMCompat.warning("Could not parse event name")
+        return
+    end
+
+    eventName = string.lower(eventName)
+
+    local eventNum = tonumber(eventName)
+    if eventNum then
+        for k, v in pairs(MMCompat.save.events) do
+            if tonumber(k) == eventNum then
+                disableTimer(v.name)
+                enableTimer(v.name)
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.events) do
+            if string.lower(v.name) == eventName then
+                disableTimer(v.name)
+                enableTimer(v.name)
+            end
         end
     end
 end
@@ -1919,20 +2274,18 @@ function MMCompat.makeVariable(strText)
       echo(string.format("\nname: %s, value: %s, group: %s\n", varName, varValue, varGroup))
     end
 
-    local valueType = type(varValue)
+    local processedVal, anyMatch = MMCompat.referenceVariables(varValue, MMGlobals)
 
-    local valueNumeric = tonumber(varValue)
-    if valueNumeric then
-      MMGlobals[varName] = valueNumeric
-    elseif valueType == "string" then
-      MMGlobals[varName] = varValue
-    else
-      MMCompat.warning(string.format("Value type (%s) is not a number or string!", valueType))
-    end
+    local varTbl = {
+        name = varName,
+        group = varGroup
+    }
 
-    local varIdx = table.index_of(MMCompat.save.variables, varName)
+    MMGlobals[varName]= processedVal
+
+    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
     if not varIdx then
-        table.insert(MMCompat.save.variables, varName)
+        table.insert(MMCompat.save.variables, varTbl)
         MMCompat.saveData()
     end
 end
@@ -1945,7 +2298,7 @@ Format: /unvariable {variable name}
 
 Removes a variable from your list of defined variables. You can either type the
 number of the variable which you see when you list the variables or an exact
-text math of the variable name.
+text match of the variable name.
 
    * {reference number} The number of the variable you want to remove.
    * {variable name} The name of the variable you want to remove.
@@ -1972,12 +2325,35 @@ function MMCompat.doUnVariable(str)
       return
     end
 
-    MMCompat.debug("varName: " .. varName)
+    local varTbl = nil
+    local varNum = tonumber(varName)
+    varName = string.lower(varName)
+    if varNum then
+        for k, v in pairs(MMCompat.save.variables) do
+            if tonumber(k) == varNum then
+                varTbl = v
+                break
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.variables) do
+            if string.lower(v.name) == varName then
+                varTbl = v
+                break
+            end
+        end
+    end
+
+    if not varTbl then
+        MMCompat.warning("Could not find variable")
+        return
+    end
 
     MMGlobals[varName] = nil
-    local varIdx = table.index_of(MMCompat.save.variables, varName)
+
+    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
     if varIdx then
-        table.remove(MMCompat.save.variables, varIdx)
+        table.remove(MMCompat.save.variables, varTbl)
         MMCompat.saveData()
     end
 end
@@ -2013,13 +2389,35 @@ function MMCompat.doEmpty(str)
       return
     end
 
-    MMCompat.debug("varName: " .. varName)
+    local varTbl = nil
+    local varNum = tonumber(varName)
+    varName = string.lower(varName)
+    if varNum then
+        for k, v in pairs(MMCompat.save.variables) do
+            if tonumber(k) == varNum then
+                varTbl = v
+                break
+            end
+        end
+    else
+        for k, v in pairs(MMCompat.save.variables) do
+            if string.lower(v.name) == varName then
+                varTbl = v
+                break
+            end
+        end
+    end
+
+    if not varTbl then
+        MMCompat.warning("Could not find variable")
+        return
+    end
 
     MMGlobals[varName] = ""
 
-    local varIdx = table.index_of(MMCompat.save.variables, varName)
+    local varIdx = table.index_of(MMCompat.save.variables, varTbl)
     if not varIdx then
-        table.insert(MMCompat.save.variables, varName)
+        table.insert(MMCompat.save.variables, varTbl)
         MMCompat.saveData()
     end
 end
@@ -2043,13 +2441,6 @@ function MMCompat.doEditVariable(str)
     local varName = ""
     local strText = str
 
-    MMCompat.debug("doEmpty finding VAR, strText:")
-    if MMCompat.isDebug then
-        display(strText)
-        echo("\n")
-        display(MMGlobals)
-        echo("\n")
-    end
     foundVar, varName, strText = MMCompat.findStatement(strText)
 
     if not foundVar then
@@ -2514,13 +2905,4 @@ alias or timer, so in effect this just calls <link: disablegroup>disablegroup</l
 function MMCompat.doKillGroup(str)
     MMCompat.doDisableGroup(str)
 end
-
-
-function MMCompat.doEditAlias(str)
-end
-
-
-function MMCompat.doUnAlias(str)
-end
-
 

@@ -98,7 +98,7 @@ MMCompat.help = {[[
 ]]
 }
 
-local function createAlignedColumnLinks(commands, columns, columnWidth)
+local function createAlignedColumnLinks(commands, columns, columnWidth, spacer)
   local result = ""
   local line = ""
 
@@ -111,7 +111,7 @@ local function createAlignedColumnLinks(commands, columns, columnWidth)
    
       -- If this is the third column (assuming 3 columns per line), start a new line
       if i % columns == 0 then
-          result = result .. line .. "\n"
+          result = result .. line .. "\n" .. spacer
           line = ""
       end
   end
@@ -1120,21 +1120,24 @@ MMCompat.initTopLevelGroup("MMSubstitutions", "trigger")
 MMCompat.add_help('commands', [[
   <cyan>Chat Commands<reset>
   ]]
-    ..createAlignedColumnLinks({'call', 'chat', 'chatall'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'chatname', 'emote', 'emoteall'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'unchat'}, 3, 20)..[[
+    ..createAlignedColumnLinks({'call', 'chat', 'chatall',
+                                'chatname', 'emote', 'emoteall', 'unchat'}, 3, 20, "  ")..
+  [[
 
   <cyan>List Commands<reset>
   ]]
-    ..createAlignedColumnLinks({'clearlist', 'itemadd', 'itemdelete'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'listadd', 'listcopy', 'listdelete'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'listitems', 'lists'}, 3, 20)..[[
+    ..createAlignedColumnLinks({'clearlist', 'itemadd', 'itemdelete',
+                                'listadd', 'listcopy', 'listdelete',
+                                'listitems', 'lists'}, 3, 20, "  ")..
+  [[
 
   <cyan>Script Control Commands<reset>
   ]]
-    ..createAlignedColumnLinks({'disableevent', 'disablegroup', 'editvariable'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'enablegroup', 'killgroup', 'resetevent'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'seteventtime', 'unevent', 'unvariable'}, 3, 20)..[[
+    ..createAlignedColumnLinks({'disableevent', 'disablegroup', 'editaction', 'editalias', 'editvariable',
+                                'enablegroup', 'killgroup', 'resetevent',
+                                'seteventtime', 'unaction', 'unalias',
+                                'unevent', 'unvariable'}, 3, 20, "  ")..
+  [[
 
   <cyan>Dll Commands<reset>
   <link: loadlibrary>loadlibrary</link>
@@ -1145,16 +1148,18 @@ MMCompat.add_help('commands', [[
 
   <cyan>Script Entities<reset>
   ]]
-    ..createAlignedColumnLinks({'action', 'alias', 'array'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'assign', 'empty', 'event'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'gag', 'highlight', 'macro'}, 3, 20).."  "
-    ..createAlignedColumnLinks({'substitute', 'variable'}, 3, 20)..[[
+    ..createAlignedColumnLinks({'action', 'alias', 'array',
+                                'assign', 'empty', 'event',
+                                'gag', 'highlight', 'macro',
+                                'substitute', 'variable'}, 3, 20, "  ")..
+  [[
 
   <cyan>Log Commands<reset>
 
   <cyan>Script Flow Control<reset>
   ]]
-    ..createAlignedColumnLinks({'if', 'loop', 'while'}, 3, 20)..[[
+    ..createAlignedColumnLinks({'if', 'loop', 'while'}, 3, 20, "  ")..
+  [[
 
   <cyan>Session Control Commands<reset>
   <link: zap>zap</link>
@@ -1171,7 +1176,8 @@ MMCompat.add_help('commands', [[
 
   <cyan>Other<reset>
   ]]
-    ..createAlignedColumnLinks({'math', 'remark'}, 3, 20)..[[
+    ..createAlignedColumnLinks({'math', 'remark'}, 3, 20, "  ")..
+  [[
 
 ]])
 
