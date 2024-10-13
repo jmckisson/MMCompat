@@ -1186,7 +1186,7 @@ function MMCompat.makeAction(strText)
         group = treeGroup
     }
 
-    local tblIdx = table.index_of(MMCompat.save.actions, actionTbl)
+    local tblIdx = MMCompat.findActionTableIdx(actionTbl)
     if not tblIdx then
         table.insert(MMCompat.save.actions, actionTbl)
         MMCompat.saveData()
@@ -1368,7 +1368,7 @@ function MMCompat.makeSubstitute(str)
         group = treeGroup
     }
 
-    local tblIdx = table.index_of(MMCompat.save.subs, subTbl)
+    local tblIdx = MMCompat.findSubTableIdx(subTbl)
     if not tblIdx then
         table.insert(MMCompat.save.subs, subTbl)
         MMCompat.saveData()
@@ -1421,7 +1421,7 @@ function MMCompat.makeGag(str)
         group = "MMGags"
     }
 
-    local tblIdx = table.index_of(MMCompat.save.gags, gagTbl)
+    local tblIdx = MMCompat.findGagTableIdx(gagTbl)
     if not tblIdx then
         table.insert(MMCompat.save.gags, gagTbl)
         MMCompat.saveData()
@@ -1576,7 +1576,7 @@ function MMCompat.makeHighlight(str)
         group = "MMHighlights"
     }
 
-    local tblIdx = table.index_of(MMCompat.save.highlights, highlightTbl)
+    local tblIdx = MMCompat.findHighlightTableIdx(highlightTbl)
     if not tblIdx then
         table.insert(MMCompat.save.highlights, highlightTbl)
         MMCompat.saveData()
@@ -1680,7 +1680,7 @@ function MMCompat.makeAlias(str)
         group = treeGroup
     }
 
-    local tblIdx = table.index_of(MMCompat.save.aliases, aliasTbl)
+    local tblIdx = MMCompat.findAliasTableIdx(aliasTbl)
     if not tblIdx then
         table.insert(MMCompat.save.aliases, aliasTbl)
         MMCompat.saveData()
@@ -1890,7 +1890,7 @@ function MMCompat.makeEvent(str)
         group = treeGroup
     }
 
-    local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
+    local tblIdx = MMCompat.findEventTableIdx(eventTbl)
     if not tblIdx then
         table.insert(MMCompat.save.events, eventTbl)
         MMCompat.saveData()
@@ -2194,7 +2194,7 @@ function MMCompat.doUnEvent(str)
 
         permTimer(eventName, treeGroup, eventTbl.freq, commands)
 
-        local tblIdx = table.index_of(MMCompat.save.events, eventTbl)
+        local tblIdx = MMCompat.findEventTableIdx(eventTbl)
         if not tblIdx then
             table.insert(MMCompat.save.events, eventTbl)
             MMCompat.saveData()

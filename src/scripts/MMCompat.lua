@@ -385,10 +385,10 @@ function MMCompat.disableLocalEcho()
 end
 
 
-function MMCompat.findListTableIdx(varTbl)
-  for k, v in ipairs(MMCompat.save.lists) do
+function MMCompat.findActionTableIdx(tbl)
+  for k, v in ipairs(MMCompat.save.actions) do
     -- Check if both 'name' and 'group' match the target table
-    if v.name == varTbl.name and v.group == varTbl.group then
+    if v.pattern == tbl.pattern and v.group == tbl.group then
         return k
     end
   end
@@ -396,10 +396,21 @@ function MMCompat.findListTableIdx(varTbl)
 end
 
 
-function MMCompat.findArrayTableIdx(varTbl)
+function MMCompat.findAliasTableIdx(tbl)
+  for k, v in ipairs(MMCompat.save.aliases) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.name == tbl.name and v.group == tbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findArrayTableIdx(tbl)
   for k, v in ipairs(MMCompat.save.arrays) do
     -- Check if both 'name' and 'group' match the target table
-    if v.name == varTbl.name and v.group == varTbl.group then
+    if v.name == tbl.name and v.group == tbl.group then
         return k
     end
   end
@@ -407,10 +418,65 @@ function MMCompat.findArrayTableIdx(varTbl)
 end
 
 
-function MMCompat.findVariableTableIdx(varTbl)
+function MMCompat.findEventTableIdx(tbl)
+  for k, v in ipairs(MMCompat.save.events) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.name == tbl.name and v.group == tbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findGagTableIdx(tbl)
+  for k, v in ipairs(MMCompat.save.gags) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.pattern == tbl.pattern and v.group == tbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findHighlightTableIdx(tbl)
+  for k, v in ipairs(MMCompat.save.highlights) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.pattern == tbl.pattern and v.group == tbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findListTableIdx(tbl)
+  for k, v in ipairs(MMCompat.save.lists) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.name == tbl.name and v.group == tbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findSubTableIdx(tbl)
+  for k, v in ipairs(MMCompat.save.subs) do
+    -- Check if both 'name' and 'group' match the target table
+    if v.pattern == tbl.pattern and v.group == tbl.group then
+        return k
+    end
+  end
+  return nil
+end
+
+
+function MMCompat.findVariableTableIdx(tbl)
   for k, v in ipairs(MMCompat.save.variables) do
     -- Check if both 'name' and 'group' match the target table
-    if v.name == varTbl.name and v.group == varTbl.group then
+    if v.name == tbl.name and v.group == tbl.group then
         return k
     end
   end
