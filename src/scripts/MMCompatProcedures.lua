@@ -932,7 +932,7 @@ function MMCompat.procRegexMatch(regex, str)
     local tableFound = false
     local arrayTbl = nil
     for k, v in pairs(MMCompat.save.arrays) do
-        if v.name == "RegexSubMatch" then
+        if v.name == "RegexSubMatches" then
             tableFound = true
             arrayTbl = v
             break
@@ -941,8 +941,8 @@ function MMCompat.procRegexMatch(regex, str)
 
     if not arrayTbl then
         arrayTbl = {
-            name = "RegexSubMatch",
-            group = "",
+            name = "RegexSubMatches",
+            group = "Regex",
             data = {}
         }
     end

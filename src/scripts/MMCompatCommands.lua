@@ -2654,10 +2654,16 @@ into the script file.
 
 See <link: assign>assign</link> for assigning values and @getarray or @arr or @a for retrieving values
 ]],
-    pattern = [[^/array (.*)$]],
+    pattern = [[^/array\s*(.*)$]],
     func = [[MMCompat.makeArray(matches[2])]]
 })
 function MMCompat.makeArray(str)
+
+    if not str or str == "" then
+        MMCompat.listArrays()
+        return
+    end
+
     local strText = str
     local foundName = false
     local arrayName = ""
