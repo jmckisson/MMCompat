@@ -485,15 +485,94 @@ function MMCompat.findVariableTableIdx(tbl)
 end
 
 
+-- function to find an action in MMCompat.save.actions by name or id
+function MMCompat.findActionByNameOrId(name)
+  local tbl = nil
+  local idx = nil
+  name = string.lower(name)
+
+  local num = tonumber(name)
+  if num then
+      for k, v in pairs(MMCompat.save.actions) do
+          if tonumber(k) == num then
+              tbl = v
+              idx = k
+              break
+          end
+      end
+
+      if not tbl then
+          MMCompat.warning("Unable to find action with id ".. num)
+          return
+      end
+  else
+      for k, v in pairs(MMCompat.save.actions) do
+          if string.lower(v.pattern) == name then
+              tbl = v
+              idx = k
+              break
+          end
+      end
+
+      if not tbl then
+          MMCompat.warning("Unable to find action with pattern '".. name.."'")
+          return
+      end
+  end
+
+  return tbl, idx
+end
+
+
+-- function to find an alias in MMCompat.save.aliases by name or id
+function MMCompat.findAliasByNameOrId(name)
+  local tbl = nil
+  name = string.lower(name)
+
+  local idx = nil
+  local num = tonumber(name)
+  if num then
+      for k, v in pairs(MMCompat.save.aliases) do
+          if tonumber(k) == num then
+              tbl = v
+              idx = k
+              break
+          end
+      end
+
+      if not tbl then
+          MMCompat.warning("Unable to find alias with id ".. num)
+          return
+      end
+  else
+      for k, v in pairs(MMCompat.save.aliases) do
+          if string.lower(v.pattern) == name then
+              tbl = v
+              idx = k
+              break
+          end
+      end
+
+      if not tbl then
+          MMCompat.warning("Unable to find alias with pattern '".. name.."'")
+          return
+      end
+  end
+
+  return tbl, idx
+end
+
+
 -- function to find a list in MMCompat.save.lists by name or id
 function MMCompat.findListByNameOrId(listName)
   local listTbl = nil
-
+  local idx = nil
   local listNum = tonumber(listName)
   if listNum then
       for k, v in pairs(MMCompat.save.lists) do
           if tonumber(k) == listNum then
               listTbl = v
+              idx = k
               break
           end
       end
@@ -506,6 +585,7 @@ function MMCompat.findListByNameOrId(listName)
       for k, v in pairs(MMCompat.save.lists) do
           if string.lower(v.name) == listName then
               listTbl = v
+              idx = k
               break
           end
       end
@@ -516,7 +596,7 @@ function MMCompat.findListByNameOrId(listName)
       end
   end
 
-  return listTbl
+  return listTbl, idx
 end
 
 
@@ -1088,6 +1168,32 @@ function MMCompat.findArray(name, row, col)
 end
 
 
+function MMCompat.listActions()
+  echo("# Defined Actions:\n")
+  for k, v in ipairs(MMCompat.save.actions) do
+    local statusChr = ' '
+    if not v.enabled then
+      statusChr = '*'
+    end
+    cecho(string.format("<white>%03d:<reset>%s{%s} {%s} {%s}",
+        tonumber(k), statusChr, v.pattern, v.commands, v.group))
+  end
+end
+
+
+function MMCompat.listAliases()
+  echo("# Defined Aliases:\n")
+  for k, v in ipairs(MMCompat.save.aliases) do
+    local statusChr = ' '
+    if not v.enabled then
+      statusChr = '*'
+    end
+    cecho(string.format("<white>%03d:<reset>%s{%s} {%s} {%s}",
+        tonumber(k), statusChr, v.pattern, v.commands, v.group))
+  end
+end
+
+
 function MMCompat.audit()
   for k, v in pairs(MMCompat.save.actions) do
     if exists(v.pattern, "trigger") == 0 then
@@ -1227,7 +1333,6 @@ function MMCompat.config()
       {name="ProcedureCount", cmd=function() return #MMCompat.procedures end},
       {name="Random",         cmd=function(val) return math.random(1, val) end},
       {name="Regex",          cmd=function(regex, str) return MMCompat.procRegex(regex, str) end},
-      -- TODO
       {name="RegexMatch",     cmd=function(regex, str) return MMCompat.procRegexMatch(regex, str) end},
       {name="Replace",        cmd=function(str, strF, strR) return MMCompat.procReplace(str, strF, strR) end},
       {name="Right",          cmd=function(val, n) return string.sub(val, -n) end},
@@ -1365,8 +1470,8 @@ MMCompat.add_help('commands', [[
 
   <cyan>Script Control Commands<reset>
   ]]
-    ..createAlignedColumnLinks({'disableevent', 'disablegroup', 'editaction', 'editalias', 'editvariable',
-                                'enablegroup', 'killgroup', 'resetevent',
+    ..createAlignedColumnLinks({'disableaction', 'disablealias', 'disableevent', 'disablegroup', 'editaction', 'editalias', 'editvariable',
+                                'enableaction', 'enablealias', 'enablegroup', 'killgroup', 'resetevent',
                                 'seteventtime', 'unaction', 'unalias', 'unarray',
                                 'unevent', 'unvariable'}, 3, 20, "  ")..
   [[

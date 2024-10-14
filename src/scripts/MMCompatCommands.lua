@@ -1071,10 +1071,15 @@ represents for your use. If the mud sent the text "Arithon looks at you." it
 would send the command "say Hi Arithon" back. You can use up to 10 (0-9)of
 these variables to help you match a text pattern.
 ]],
-    pattern = [[^/action (.*)$]],
+    pattern = [[^/action\s*(.*)$]],
     func = [[MMCompat.makeAction(matches[2])]]
 })
 function MMCompat.makeAction(strText)
+
+    if not strText or strText == "" then
+        MMCompat.listActions()
+        return
+    end
 
     local foundPattern = false
     local ptrn = ""
@@ -1151,6 +1156,7 @@ function MMCompat.makeAction(strText)
     local actionTbl = {
         pattern = ptrn,
         cmd = cmdsStmt,
+        enabled = true,
         group = treeGroup
     }
 
@@ -1197,24 +1203,7 @@ function MMCompat.doEditAction(str)
       return
     end
 
-    local actionTbl = nil
-    actionName = string.lower(actionName)
-    local actionNum = tonumber(actionName)
-    if actionNum then
-        for k, v in pairs(MMCompat.save.actions) do
-            if tonumber(k) == actionNum then
-                actionTbl = v
-                break
-            end
-        end
-    else
-        for k, v in pairs(MMCompat.save.actions) do
-            if string.lower(v.pattern) == actionName then
-                actionTbl = v
-                break
-            end
-        end
-    end
+    local actionTbl = MMCompat.findActionByNameOrId(actionName)
 
     if not actionTbl then
         MMCompat.warning("Unable to find action")
@@ -1223,6 +1212,81 @@ function MMCompat.doEditAction(str)
 
     clearCmdLine()
     appendCmdLine("/action {"..actionTbl.pattern.."} {"..actionTbl.cmd.."} {"..actionTbl.group.."}")
+end
+
+
+MMCompat.add_command('enableaction', {
+    help = [[
+Format: /enableaction {reference number}
+Format: /enableaction {text pattern}
+
+EnableAction allows you to turn actions on that have been disabled with
+/disableaction.
+
+   * {reference number} The number of the action to enable.
+   * {text pattern} The trigger text of the action to enable.
+]],
+    pattern = [[^/disablea(?:ction)? (.*)$]],
+    func = [[MMCompat.doDisableAction(matches[2])]]
+})
+function MMCompat.doEnableAction(str)
+    local strText = str
+    local foundName = false
+    local ptrn = ""
+
+    foundName, ptrn, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Cannot parse action name")
+        return
+    end
+
+    local actionTbl = MMCompat.findActionByNameOrId(ptrn)
+
+    if not actionTbl then
+        MMCompat.warning("Unable to find action")
+        return
+    end
+
+    enableTrigger(actionTbl.pattern)
+    actionTbl.enabled = true
+end
+
+
+MMCompat.add_command('disableaction', {
+    help = [[
+Format: /disableaction {reference number}
+Format: /disableaction {text pattern}
+
+Disables an action.
+
+   * {reference number} The number of the action to disable.
+   * {text pattern} The trigger text of the action to disable.
+]],
+    pattern = [[^/disablea(?:ction)? (.*)$]],
+    func = [[MMCompat.doDisableAction(matches[2])]]
+})
+function MMCompat.doDisableAction(str)
+    local strText = str
+    local foundName = false
+    local ptrn = ""
+
+    foundName, ptrn, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Cannot parse action name")
+        return
+    end
+
+    local actionTbl = MMCompat.findActionByNameOrId(ptrn)
+
+    if not actionTbl then
+        MMCompat.warning("Unable to find action")
+        return
+    end
+
+    disableTrigger(actionTbl.pattern)
+    actionTbl.enabled = false
 end
 
 
@@ -1253,22 +1317,23 @@ function MMCompat.doUnAction(str)
         return
     end
 
-    local actionNum = tonumber(ptrn)
-    if actionNum then
-        for k, v in pairs(MMCompat.save.actions) do
-            if tonumber(k) == actionNum then
-                disableTrigger(v.name)
-                break
-            end
-        end
-    else
-        for k, v in pairs(MMCompat.save.actions) do
-            if v.name == ptrn then
-                disableTrigger(v.name)
-                break
-            end
-        end
+    local actionTbl = MMCompat.findActionByNameOrId(ptrn)
+
+    if not actionTbl then
+        MMCompat.warning("Unable to find action")
+        return
     end
+
+    disableTrigger(actionTbl.pattern)
+
+    local actionIdx = MMCompat.findActionTableIdx(actionTbl)
+    if not actionIdx then
+        MMCompat.warning("Unable to find action")
+        return
+    end
+
+    table.remove(MMCompat.save.actions, actionIdx)
+    MMCompat.saveData()
 end
 
 
@@ -1580,10 +1645,16 @@ You can also use the variable %0 to represent the text typed after the alias
 shortcut. In this case the alias is used to quickly set a targeting variable.
 Typing "targ Vecna" would set a variable called "Target" to "Vecna"
 ]],
-    pattern = [[^/alias (.*)$]],
+    pattern = [[^/alias\s*(.*)$]],
     func = [[MMCompat.makeAlias(matches[2])]]
 })
 function MMCompat.makeAlias(str)
+
+    if not str or str == "" then
+        MMCompat.listAliases()
+        return
+    end
+
     local strText = str
     local foundPattern = false
     local aliasPattern = ""
@@ -1645,6 +1716,7 @@ function MMCompat.makeAlias(str)
     local aliasTbl = {
         pattern = aliasPattern,
         cmd = aliasCommands,
+        enabled = true,
         group = treeGroup
     }
 
@@ -1653,6 +1725,81 @@ function MMCompat.makeAlias(str)
         table.insert(MMCompat.save.aliases, aliasTbl)
         MMCompat.saveData()
     end
+end
+
+
+MMCompat.add_command('disablealias', {
+    help = [[
+Format: /disablealias {reference number}
+Format: /disablealias {alias name}
+
+Disables an alias.
+
+   * {reference number} The number of the alias to disable.
+   * {text pattern} The name of the alias to disable.
+]],
+    pattern = [[^/disablea(?:lias)? (.*)$]],
+    func = [[MMCompat.doDisableAlias(matches[2])]]
+})
+function MMCompat.doDisableAlias(str)
+    local strText = str
+    local foundName = false
+    local aliasName = ""
+
+    foundName, aliasName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Unable to parse alias name")
+        return
+    end
+
+    local aliasTbl, aliasIdx = MMCompat.findAliasByNameOrId(aliasName)
+
+    if not aliasTbl then
+        MMCompat.warning("Could not find alias")
+        return
+    end
+
+    aliasTbl.enabled = false
+    disableAlias(aliasTbl.pattern)
+end
+
+
+MMCompat.add_command('enablealias', {
+    help = [[
+Format: /enablealias {reference number}
+Format: /enablealias {alias name}
+
+EnableAlias allows you to turn aliases on that have been disabled with
+/disablealias.
+
+   * {reference number} The number of the alias to enable.
+   * {text pattern} The name of the alias to enable.
+]],
+    pattern = [[^/enablea(?:lias)? (.*)$]],
+    func = [[MMCompat.doEnableAlias(matches[2])]]
+})
+function MMCompat.doEnableAlias(str)
+    local strText = str
+    local foundName = false
+    local aliasName = ""
+
+    foundName, aliasName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.warning("Unable to parse alias name")
+        return
+    end
+
+    local aliasTbl, aliasIdx = MMCompat.findAliasByNameOrId(aliasName)
+
+    if not aliasTbl then
+        MMCompat.warning("Could not find alias")
+        return
+    end
+
+    aliasTbl.enabled = true
+    enableAlias(aliasTbl.pattern)
 end
 
 
@@ -1689,24 +1836,7 @@ function MMCompat.doEditAlias(str)
       return
     end
 
-    local aliasTbl = nil
-    aliasName = string.lower(aliasName)
-    local aliasNum = tonumber(aliasName)
-    if aliasNum then
-        for k, v in pairs(MMCompat.save.aliases) do
-            if tonumber(k) == aliasNum then
-                aliasTbl = v
-                break
-            end
-        end
-    else
-        for k, v in pairs(MMCompat.save.aliases) do
-            if string.lower(v.name) == aliasName then
-                aliasTbl = v
-                break
-            end
-        end
-    end
+    local aliasTbl = MMCompat.findAliasByNameOrId(aliasName)
 
     if not aliasTbl then
         MMCompat.warning("Unable to find alias")
@@ -1745,20 +1875,17 @@ function MMCompat.doUnAlias(str)
         return
     end
 
-    local aliasNum = tonumber(aliasName)
-    if aliasNum then
-        for k, v in pairs(MMCompat.save.aliases) do
-            if tonumber(k) == aliasNum then
-                disableAlias(v.name)
-            end
-        end
-    else
-        for k, v in pairs(MMCompat.save.aliases) do
-            if v.name == aliasName then
-                disableAlias(v.name)
-            end
-        end
+    local aliasTbl, aliasIdx = MMCompat.findAliasByNameOrId(aliasName)
+
+    if not aliasTbl then
+        MMCompat.warning("Could not find alias")
+        return
     end
+
+    table.remove(MMCompat.save.aliases, aliasIdx)
+    MMCompat.saveData()
+
+    disableAlias(aliasTbl.pattern)
 end
 
 
