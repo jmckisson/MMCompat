@@ -129,7 +129,8 @@ end
 
 function MMCompat.debug(msg)
   if MMCompat.isDebug then
-      cecho(string.format("\n<white>[<indian_red>MMCompat<orange>Debug<white>] %s", msg))
+    echo("\n")
+    cecho(string.format("<white>[<indian_red>MMCompat<orange>Debug<white>] %s", msg))
   end
 end
 
@@ -389,7 +390,7 @@ end
 function MMCompat.findActionTableIdx(tbl)
   for k, v in ipairs(MMCompat.save.actions) do
     -- Check if both 'name' and 'group' match the target table
-    if v.pattern == tbl.pattern and v.group == tbl.group then
+    if v.pattern == tbl.pattern and v.cmd == tbl.cmd and v.group == tbl.group then
         return k
     end
   end
@@ -846,9 +847,9 @@ function MMCompat.referenceVariables(str, globals_table)
     end
   end
 
-  local processedStr = MMCompat.replaceProcedureCalls(str)
+  --local processedStr = MMCompat.replaceProcedureCalls(str)
 
-  return processedStr, anyMatch
+  return str, anyMatch
 end
 
 
@@ -888,9 +889,9 @@ function MMCompat.replaceVariables(str, encapsulate)
   end
 
   -- Process any procedure calls in the statement
-  local processedStr = MMCompat.replaceProcedureCalls(str)
+  --local processedStr = MMCompat.replaceProcedureCalls(str)
 
-  return processedStr, anyMatch
+  return str, anyMatch
 end
 
 -- Template code to assign the matches global to entries in MMGlobals
@@ -910,13 +911,13 @@ end
 --]]
 
 function MMCompat.templateAssignGlobalMatches()
-  if MMCompat.isDebug then
-    display(matches)
-    echo("\n")
-  end
+  --if MMCompat.isDebug then
+  --  display(matches)
+  --  echo("\n")
+  --end
 
   for k, v in pairs(matches) do
-    MMCompat.debug(string.format("assigning key: %s  value: %s", k, v))
+    --MMCompat.debug(string.format("assigning key: %s  value: %s", k, v))
     if not tonumber(k) then
       -- this is a named capture
       MMGlobals[k] = v
@@ -1175,8 +1176,8 @@ function MMCompat.listActions()
     if not v.enabled then
       statusChr = '*'
     end
-    cecho(string.format("<white>%03d:<reset>%s{%s} {%s} {%s}",
-        tonumber(k), statusChr, v.pattern, v.commands, v.group))
+    cecho(string.format("<white>%03d:<reset>%s{%s} {%s} {%s}\n",
+        tonumber(k), statusChr, v.pattern, v.cmd, v.group))
   end
 end
 
@@ -1188,8 +1189,34 @@ function MMCompat.listAliases()
     if not v.enabled then
       statusChr = '*'
     end
-    cecho(string.format("<white>%03d:<reset>%s{%s} {%s} {%s}",
+    cecho(string.format("<white>%03d:<reset>%s{%s} {%s} {%s}\n",
         tonumber(k), statusChr, v.pattern, v.commands, v.group))
+  end
+end
+
+
+function MMCompat.listEvents()
+  echo("# Defined Events:\n")
+  for k, v in pairs(MMCompat.save.events) do
+      if exists(v.name, "timer") ~= 0 then
+          local evtTime = remainingTime(v.name) or v.freq
+
+          echo(string.format("%03s: {%s} {F:%d} {T:%d} {%s}\n",
+              tonumber(k), v.name, v.freq, evtTime, v.cmd))
+
+      end
+  end
+end
+
+
+function MMCompat.listVariables()
+  echo("# Defined Variables:\n")
+  for k, v in ipairs(MMCompat.save.variables) do
+
+    local varValue = MMGlobals[v.name] or ""
+
+    cecho(string.format("<white>%03d:<reset>{%s} {%s} {%s}\n",
+        tonumber(k), v.name, varValue, v.group))
   end
 end
 
@@ -1517,7 +1544,7 @@ MMCompat.add_help('commands', [[
 
   <cyan>Other<reset>
   ]]
-    ..createAlignedColumnLinks({'math', 'remark'}, 3, 20, "  ")..
+    ..createAlignedColumnLinks({'clearscreen', 'math', 'remark'}, 3, 20, "  ")..
   [[
 
 ]])

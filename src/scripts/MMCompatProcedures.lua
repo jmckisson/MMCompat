@@ -513,7 +513,9 @@ function MMCompat.procIf(str)
 
     local parsedCondition = "return " .. MMCompat.replaceVariables(stmt, false)
 
-    local result = MMCompat.executeString(parsedCondition)
+    local procStr = MMCompat.replaceProcedureCalls(parsedCondition)
+
+    local result = MMCompat.executeString(procStr)
 
     if result then
         return "1"
@@ -1138,6 +1140,7 @@ function MMCompat.procTextColor(str)
     if selectString(str, 1) > -1 then
         local r, g, b = getFgColor()
         deselect()
+        moveCursorEnd()
 
         local colorName = closestColor(r, g, b)
 

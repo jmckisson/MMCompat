@@ -46,7 +46,10 @@ function MMCompat.doChatCall(str)
     local addressStr = MMCompat.referenceVariables(address, MMGlobals)
     local portStr = MMCompat.referenceVariables(port, MMGlobals)
 
-    chatCall(addressStr, portStr)
+    local procAddrStr = MMCompat.replaceProcedureCalls(addressStr)
+    local procPortStr = MMCompat.replaceProcedureCalls(portStr)
+
+    chatCall(procAddrStr, procPortStr)
 end
 
 
@@ -101,7 +104,10 @@ function MMCompat.doChat(str)
     local targetStr = MMCompat.referenceVariables(target, MMGlobals)
     local messageStr = MMCompat.referenceVariables(message, MMGlobals)
 
-    chat(targetStr, messageStr)
+    local procTargetStr = MMCompat.replaceProcedureCalls(targetStr)
+    local procMessageStr = MMCompat.replaceProcedureCalls(messageStr)
+
+    chat(procTargetStr, procMessageStr)
 end
 
 
@@ -128,7 +134,9 @@ function MMCompat.doChatAll(str)
 
     local messageStr = MMCompat.referenceVariables(str, MMGlobals)
 
-    chatAll(messageStr)
+    local procStr = MMCompat.replaceProcedureCalls(messageStr)
+
+    chatAll(procStr)
 end
 
 
@@ -163,7 +171,9 @@ function MMCompat.doChatName(str)
 
     local nameStr = MMCompat.referenceVariables(name, MMGlobals)
 
-    chatName(nameStr)
+    local procStr = MMCompat.replaceProcedureCalls(nameStr)
+
+    chatName(procStr)
 end
 
 
@@ -202,7 +212,9 @@ function MMCompat.doEmoteAll(str)
 
     local messageStr = MMCompat.referenceVariables(text, MMGlobals)
 
-    local emoteStr = "says, '" .. messageStr .. "'"
+    local procStr = MMCompat.replaceProcedureCalls(messageStr)
+
+    local emoteStr = "says, '" .. procStr .. "'"
     chatEmoteAll(emoteStr)
 end
 
@@ -240,7 +252,23 @@ function MMCompat.doUnChat(str)
 
     local targetStr = MMCompat.referenceVariables(target, MMGlobals)
 
-    chatUnChat(targetStr)
+    local procStr = MMCompat.replaceProcedureCalls(targetStr)
+
+    chatUnChat(procStr)
+end
+
+
+MMCompat.add_command('clearscreen', {
+    help = [[
+Format: /clearscreen
+
+Clears the display text.
+]],
+    pattern = [[^/clear(?:screen)?$]],
+    func = [[MMCompat.doClearScreen()]]
+})
+function MMCompat.doClearScreen()
+    clearWindow()
 end
 
 
@@ -324,23 +352,25 @@ function MMCompat.doIf(strText)
 
     local parsedCondition = "return " .. MMCompat.replaceVariables(stmt, false)
 
+    local procStr = MMCompat.replaceProcedureCalls(parsedCondition)
+
     if MMCompat.isDebug then
         if foundCondition then
-        MMCompat.echo("ifCondition: " ..stmt)
+            MMCompat.echo("ifCondition: " ..stmt)
         end
 
         if foundThen then
-        MMCompat.echo("thenCondition: " ..thenStmt)
+            MMCompat.echo("thenCondition: " ..thenStmt)
         end
 
         if foundElse then
-        MMCompat.echo("elseCondition: " ..elseStmt)
+            MMCompat.echo("elseCondition: " ..elseStmt)
         end
 
-        MMCompat.echo(parsedCondition)
+        MMCompat.echo(procStr)
     end
 
-    local result = MMCompat.executeString(parsedCondition)
+    local result = MMCompat.executeString(procStr)
 
     MMCompat.disableLocalEcho()
 
@@ -421,8 +451,10 @@ function MMCompat.doLoop(strText)
 
     local refStr, anyMatch = MMCompat.referenceVariables(loopBounds, MMGlobals)
 
+    local procStr = MMCompat.replaceProcedureCalls(refStr)
+
     if anyMatch then
-        loopBounds = refStr
+        loopBounds = procStr
     end
 
     local loopArgs = {}
@@ -511,15 +543,18 @@ function MMCompat.doWhile(strText)
         return
     end
 
+    -- TODO replace with referenceVariables?
     local parsedCondition = "return " .. MMCompat.replaceVariables(conditionStmt, false)
+
+    local procStr = MMCompat.replaceProcedureCalls(parsedCondition)
 
     MMGlobals['whileLoopCount'] = 1
 
     MMCompat.disableLocalEcho()
 
-    while MMCompat.executeString(parsedCondition) do
+    while MMCompat.executeString(procStr) do
         if MMCompat.isDebug then
-        display(MMGlobals)
+            display(MMGlobals)
         end
 
         MMCompat.debug("iteration "..MMGlobals['whileLoopCount'].." cmds: " .. cmdsStmt)
@@ -646,7 +681,6 @@ function MMCompat.doShowme(str)
     local foundText = false
     local text = ""
 
-    
     if string.sub(str, 1, 1) == '{' then
         foundText, text, strText = MMCompat.findStatement(strText)
 
@@ -661,8 +695,13 @@ function MMCompat.doShowme(str)
 
     local varStr = MMCompat.referenceVariables(text, MMGlobals)
 
-    --echo("doShowme '" .. str .. "'\n")
-    feedTriggers(varStr.."\n")
+    MMCompat.debug("varStr: ".. varStr)
+
+    local procStr = MMCompat.replaceProcedureCalls(varStr)
+
+    MMCompat.debug("procStr: ".. procStr)
+
+    feedTriggers(procStr.."\n")
     echo("")
 end
 
@@ -1156,7 +1195,7 @@ function MMCompat.makeAction(strText)
 
     MMCompat.debug("Creating trigger '" .. ptrn .. "'")
 
-    commands = commands .. "\nMMCompat.actionMatch = matches[1]"
+    commands = "MMCompat.actionMatch = matches[1]".."\n"..commands
 
     if MMCompat.isDebug then
       MMCompat.debug("commands:")
@@ -1996,6 +2035,7 @@ function MMCompat.makeEvent(str)
         name = eventName,
         freq = eventFreq,
         cmd = eventActions,
+        enabled = true,
         group = treeGroup
     }
 
@@ -2003,19 +2043,6 @@ function MMCompat.makeEvent(str)
     if not tblIdx then
         table.insert(MMCompat.save.events, eventTbl)
         MMCompat.saveData()
-    end
-end
-
-function MMCompat.listEvents()
-    echo("# Defined Events:\n")
-    for k, v in pairs(MMCompat.save.events) do
-        if exists(v.name, "timer") ~= 0 then
-            local evtTime = remainingTime(v.name) or v.freq
-
-            echo(string.format("%03s: {%s} {F:%d} {T:%d} {%s}\n",
-                tonumber(k), v.name, v.freq, evtTime, v.cmd))
-
-        end
     end
 end
 
@@ -2340,10 +2367,16 @@ you if you insist, but you should probably not define variables with these
 names. If you do your version of the variable will be found before the system
 variable. For a list of system variables see the User Guide.
 ]],
-    pattern = [[^/var(?:iable)? (.*)$]],
+    pattern = [[^/var(?:iable)?\s*(.*)$]],
     func = [[MMCompat.makeVariable(matches[2])]]
 })
 function MMCompat.makeVariable(strText)
+
+    if not strText or strText == "" then
+        MMCompat.listVariables()
+        return
+    end
+
     MMCompat.debug("makeVariable")
 
     local foundVar = false
@@ -2407,12 +2440,14 @@ function MMCompat.makeVariable(strText)
 
     local processedVal, anyMatch = MMCompat.referenceVariables(varValue, MMGlobals)
 
+    local procStr = MMCompat.replaceProcedureCalls(processedVal)
+
     local varTbl = {
         name = varName,
         group = varGroup
     }
 
-    MMGlobals[varName]= processedVal
+    MMGlobals[varName]= procStr
 
     local varIdx = MMCompat.findVariableTableIdx(varTbl)
     if not varIdx then
