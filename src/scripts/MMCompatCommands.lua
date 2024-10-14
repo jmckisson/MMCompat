@@ -244,6 +244,20 @@ function MMCompat.doUnChat(str)
 end
 
 
+MMCompat.add_command('cr', {
+    help = [[
+Format: /cr
+
+Sends a carriage return to the mud.
+]],
+    pattern = [[^/cr$]],
+    func = [[MMCompat.doCR()]]
+})
+function MMCompat.doCR()
+    send("\n")
+end
+
+
 MMCompat.add_command('if', {
     help = [[
 Format: /if {conditional statement} {then} {else}

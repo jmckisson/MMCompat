@@ -1504,7 +1504,9 @@ MMCompat.add_help('commands', [[
   <link: zap>zap</link>
 
   <cyan>Display Output Commands<reset>
-  <link: showme>showme</link>
+  ]]
+  ..createAlignedColumnLinks({'cr', 'showme'}, 3, 20, "  ")..
+  [[
 
   <cyan>Speed Walk Commands<reset>
 
