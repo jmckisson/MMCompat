@@ -658,41 +658,6 @@ local is_int = function(n)
 end
 
 
--- function to find a list in MMCompat.save.lists by name or id
-local function findListByNameOrId(listName)
-    local listTbl = nil
-
-    local listNum = tonumber(listName)
-    if listNum then
-        for k, v in pairs(MMCompat.save.lists) do
-            if tonumber(k) == listNum then
-                listTbl = v
-                break
-            end
-        end
-
-        if not listTbl then
-            MMCompat.warning("Unable to find list with id ".. listNum)
-            return
-        end
-    else
-        for k, v in pairs(MMCompat.save.lists) do
-            if string.lower(v.name) == listName then
-                listTbl = v
-                break
-            end
-        end
-
-        if not listTbl then
-            MMCompat.warning("Unable to find list with name '".. listName.."'")
-            return
-        end
-    end
-
-    return listTbl
-end
-
-
 MMCompat.add_command('listadd', {
     help = [[
 Format: /listadd {list name} {group name}
@@ -888,7 +853,8 @@ function MMCompat.doListDelete(str)
 
     local tblIdx = MMCompat.findListTableIdx(listTbl)
     if tblIdx then
-        table.remove(MMCompat.save.lists, listTbl)
+        table.remove(MMCompat.save.lists, tblIdx)
+        MMCompat.push_undo(listTbl, "list")
         MMCompat.saveData()
     end
 end
@@ -1170,6 +1136,8 @@ function MMCompat.makeAction(strText)
     local treeGroup = MMCompat.createParentGroup(group, "trigger", "MMActions")
 
     MMCompat.debug("Creating trigger '" .. ptrn .. "'")
+
+    commands = commands .. "\nMMCompat.actionMatch = matches[1]"
 
     if MMCompat.isDebug then
       MMCompat.debug("commands:")
@@ -2375,7 +2343,8 @@ function MMCompat.doUnVariable(str)
 
     local varIdx = MMCompat.findVariableTableIdx(varTbl)
     if varIdx then
-        table.remove(MMCompat.save.variables, varTbl)
+        table.remove(MMCompat.save.variables, varIdx)
+        MMCompat.push_undo(varTbl, "var")
         MMCompat.saveData()
     end
 end
@@ -2657,6 +2626,71 @@ function MMCompat.doAssign(str)
     end
 
 end
+
+
+MMCompat.add_command('unarray', {
+    help = [[
+Format: /unarray {reference number}
+Format: /unarray {array name}
+
+Removes an array from your list of defined arrays. You can either type the
+number of the array which you see when you list them or the name of the array.
+
+   * {reference number} The number of the array you want to remove.
+   * {array name} The name of the array you want to remove.
+]],
+    pattern = [[^/unarray (.*)$]],
+    func = [[MMCompat.doUnArray(matches[2])]]
+})
+function MMCompat.doUnArray(str)
+    local strText = str
+    local foundName = false
+    local arrayName = ""
+
+    foundName, arrayName, strText = MMCompat.findStatement(strText)
+
+    if not foundName then
+        MMCompat.error("Unable to parse array name from '"..str.."'")
+        return
+    end
+
+    local arrayTbl = nil
+    arrayName = string.lower(arrayName)
+    local arrayNum = tonumber(arrayName)
+    if arrayNum then
+        for k, v in pairs(MMCompat.save.arrays) do
+            if tonumber(k) == arrayNum then
+                arrayTbl = v
+                break
+            end
+        end
+
+        if not arrayTbl then
+            MMCompat.warning("Unable to find array with id ".. arrayNum)
+            return
+        end
+    else
+        for k, v in pairs(MMCompat.save.arrays) do
+            if string.lower(v.name) == arrayName then
+                arrayTbl = v
+                break
+            end
+        end
+
+        if not arrayTbl then
+            MMCompat.warning("Unable to find array with name '".. arrayName.."'")
+            return
+        end
+    end
+
+    local arrayIdx = MMCompat.findArrayTableIdx(arrayTbl)
+    if arrayIdx then
+        table.remove(MMCompat.save.arrays(arrayIdx))
+        MMCompat.push_undo(arrayTbl, "array")
+        MMCompat.saveData()
+    end
+end
+
 
 MMCompat.add_command('read', {
     help = [[

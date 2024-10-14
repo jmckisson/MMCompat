@@ -199,6 +199,37 @@ function MMCompat.procDeComma(str)
 end
 
 
+MMCompat.add_help({'@Enum', '@EnumList'}, [[
+Format: @Enum(list name,item text), @EnumList(list name,item text)
+Format: @Enum(list number,item text), @EnumList(list number,item text)
+
+Returns 1 based index of the item is found in the list otherwise 0 if not found.
+@Enum is identical to @EnumList.
+
+   * list name - The name of the list you want to check.
+   * list number - The number of the list you want to check.
+   * item text - The item you want to search for in the list.
+]])
+function MMCompat.procEnum(list, item)
+    local listTbl = MMCompat.findListByNameOrId(list)
+
+    if not listTbl then
+        MMCompat.warning("Cannot find list by that name")
+        return
+    end
+
+    local itemText = string.lower(item)
+    itemText = itemText:gsub("%s+", "") -- trim whitespace
+    for k, v in pairs(listTbl.data) do
+        if string.lower(v) == itemText then
+            return tonumber(k)
+        end
+    end
+
+    return 0
+end
+
+
 MMCompat.add_help('@EventTime', [[
 Format: @EventTime(event name)
 
@@ -666,6 +697,26 @@ function MMCompat.procMath(strMath)
 end
 
 
+MMCompat.add_help('@Microsecond', [[
+Format: @Microsecond()
+
+Microsecond returns the microsecond counter from the operating system. This counter
+goes from -2,147,483,648 to 2,147,483,647 then rolls over. Generally it works
+best to use it to calculate very short time differences.
+]])
+function MMCompat.procMicrosecond()
+    local USEC_MIN = -2147483648
+    local timeSec = getEpoch()
+
+    -- convert to milliseconds
+    local microsec = timeSec * 1e6
+
+    local usec_rollover = math.floor(microsec % 4294967296 + USEC_MIN)
+
+    return usec_rollover
+end
+
+
 MMCompat.add_help('@Mid', [[
 Format: @Mid(text,start character,number of characters)
 
@@ -675,8 +726,8 @@ so if you want the very first character in a string the start character would
 have to be zero.
 
    * text - Text string from which you want to grab a portion.
-   *  start character - The character index of the first character to get.
-   *  number of characters - The number of characters to get.
+   * start character - The character index of the first character to get.
+   * number of characters - The number of characters to get.
 
 Examples:
 
@@ -759,7 +810,7 @@ Returns the number of variables you have defined.
 ]])
 
 
-MMCompat.add_help('@PadLeft', [[
+MMCompat.add_help({'@PadLeft', '@LeftPad'}, [[
 Format: @PadLeft(text,character,number)
 
 Returns a string padded on the left with a specific character.
@@ -770,7 +821,7 @@ Returns a string padded on the left with a specific character.
 ]])
 
 
-MMCompat.add_help('@PadRight', [[
+MMCompat.add_help({'@PadRight', '@RightPad'}, [[
 Format: @PadRight(text,character,number)
 
 Returns a string padded on the right with a specific character.
@@ -824,6 +875,95 @@ say @GetItem(Greetings,@Random(@GetCount(Greetings))) Rand!
 If you had a list that contained a bunch of different greetings the above would
 randomly select one to use.
 ]])
+
+
+MMCompat.add_help('@Regex', [[
+Format: @Regex(Regular expression, String to match)
+
+Regex uses a regular expression to try to match the string provided. If there
+is a match it returns 1 otherwise 0.
+]])
+function MMCompat.procRegex(regex, str)
+    MMCompat.debug(string.format("procRegex(%s,%s)",
+        regex, str))
+
+    local rexmatch = rex.match(str, regex)
+
+    if not rexmatch then
+        return 0
+    end
+
+    if MMCompat.isDebug then
+        echo("\n")
+        display(rexmatch)
+        return rexmatch
+    end
+
+    return 0
+end
+
+
+local function pack(...)
+    local t = {...}
+    t.n = select("#", ...)  -- Store the number of return values
+    return t
+end
+
+
+MMCompat.add_help('@RegexMatch', [[
+Format: @RegexMatch(Regular expression, String to match)
+
+RegexMatch uses a regular expression to try to match the string provided. If there
+is a match it returns the matching string. It also fills the RegexSubMatch system
+array with the submatch strings. 
+
+See the help via the Help menu for more details.
+]])
+function MMCompat.procRegexMatch(regex, str)
+    local matchResults = {rex.match(str, regex)}
+
+    if MMCompat.isDebug then
+        MMCompat.debug("RegexMatch results:")
+        display(matchResults)
+    end
+
+    local tableFound = false
+    local arrayTbl = nil
+    for k, v in pairs(MMCompat.save.arrays) do
+        if v.name == "RegexSubMatch" then
+            tableFound = true
+            arrayTbl = v
+            break
+        end
+    end
+
+    if not arrayTbl then
+        arrayTbl = {
+            name = "RegexSubMatch",
+            group = "",
+            data = {}
+        }
+    end
+
+    arrayTbl.bounds = {rows=#matchResults, cols=1}
+
+    local anyMatches = false
+    for i, match in ipairs(matchResults) do
+        anyMatches = true
+        table.insert(arrayTbl.data, match)
+    end
+
+    if anyMatches then
+        if not tableFound then
+            table.insert(MMCompat.save.arrays, arrayTbl)
+            MMCompat.saveData()
+        end
+
+        return str
+    end
+
+    return ""
+end
 
 
 MMCompat.add_help('@Replace', [[
@@ -975,6 +1115,42 @@ the startCharIndex until the endCharIndex. The index is 0 based.
 ]])
 function MMCompat.procSubStr(str, startIdx, stopIdx)
     return string.sub(str, startIdx-1, stopIdx-1)
+end
+
+
+MMCompat.add_help('@TextColor', [[
+Format: @TextColor(text)
+
+This procedure is only useful in an action. It searches the line of text that
+caused the action to fire for the text passed in. It returns the color of the
+first character that matches.
+]])
+function MMCompat.procTextColor(str)
+    if not MMCompat.actionMatch then
+        return ""
+    end
+
+    local idx = string.find(MMCompat.actionMatch, str)
+    if not idx then
+        return ""
+    end
+
+    if selectString(str, 1) > -1 then
+        local r, g, b = getFgColor()
+        deselect()
+
+        local colorName = closestColor(r, g, b)
+
+        if not colorName then
+            MMCompat.warning(string.format("Could not find color name for RGB values (%d, %d, %d)",
+                r, g, b))
+            return ""
+        end
+
+        return colorName
+    end
+
+    return ""
 end
 
 
@@ -1142,6 +1318,44 @@ function MMCompat.procWord(str, n)
             return word
         end
     end
+    return ""
+end
+
+
+MMCompat.add_help('@WordColor', [[
+
+Format: @WordColor(word number)
+
+This is only useful in an action. Pass in the number of the word whose color
+you want to check in the line that set off the action. It returns the color
+of the first character of that word.
+]])
+function MMCompat.procWordColor(num)
+    if not MMCompat.actionMatch then
+        return ""
+    end
+
+    local word = MMCompat.procWord(MMCompat.actionMatch, num)
+
+    if not word then
+        return ""
+    end
+
+    if selectString(word, 1) > -1 then
+        local r, g, b = getFgColor()
+        deselect()
+
+        local colorName = closestColor(r, g, b)
+
+        if not colorName then
+            MMCompat.warning(string.format("Could not find color name for RGB values (%d, %d, %d)",
+                r, g, b))
+            return ""
+        end
+
+        return colorName
+    end
+
     return ""
 end
 
