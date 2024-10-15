@@ -1195,6 +1195,21 @@ function MMCompat.listAliases()
 end
 
 
+function MMCompat.listArrays()
+  echo("# Defined Arrays:\n")
+  for k, v in ipairs(MMCompat.save.arrays) do
+
+    local bounds = "Rows:" .. v.bounds.rows
+    if v.bounds.cols > 0 then
+      bounds = bounds .. " Cols:" .. v.bounds.cols
+    end
+
+    cecho(string.format("<white>%03d: <reset>{%s} {%s} {%s}\n",
+        tonumber(k), v.name, bounds, v.group))
+  end
+end
+
+
 function MMCompat.listEvents()
   echo("# Defined Events:\n")
   for k, v in pairs(MMCompat.save.events) do
